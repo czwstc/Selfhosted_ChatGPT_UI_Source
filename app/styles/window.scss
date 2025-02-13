@@ -1,5 +1,5 @@
 .window-header {
-  padding: 14px 20px;
+  padding: 10px 20px;
   border-bottom: rgba(0, 0, 0, 0.1) 1px solid;
   position: relative;
 
@@ -23,7 +23,7 @@
   }
 
   .window-header-sub-title {
-    font-size: 14px;
+    font-size: 13.5px;
   }
 }
 
@@ -33,4 +33,8 @@
 
 .window-action-button:not(:first-child) {
   margin-left: 10px;
+}
+
+.window-action-button button {
+  padding: 8px;
 }

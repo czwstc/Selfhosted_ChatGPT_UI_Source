@@ -38,31 +38,73 @@ export enum Theme {
 
 const config = getClientConfig();
 
-export const DEFAULT_CONFIG = {
-  lastUpdate: Date.now(), // timestamp, to merge state
+export type ModelConfig = {
+  model: ModelType;
+  providerName: ServiceProvider;
+  temperature: number;
+  top_p: number;
+  max_tokens: number;
+  presence_penalty: number;
+  frequency_penalty: number;
+  sendMemory: boolean;
+  historyMessageCount: number;
+  compressMessageLengthThreshold: number;
+  compressModel: string;
+  compressProviderName: string;
+  enableInjectSystemPrompts: boolean;
+  template: string;
+  size: DalleSize;
+  quality: DalleQuality;
+  style: DalleStyle;
+};
 
+export type AppConfig = {
+  lastUpdate: number;
+  submitKey: SubmitKey;
+  avatar: string;
+  fontSize: number;
+  fontFamily: string;
+  theme: Theme;
+  tightBorder: boolean;
+  sendPreviewBubble: boolean;
+  enableAutoGenerateTitle: boolean;
+  sidebarWidth: number;
+  enableArtifacts: boolean;
+  enableCodeFold: boolean;
+  disablePromptHint: boolean;
+  dontShowMaskSplashScreen: boolean;
+  hideBuiltinMasks: boolean;
+  customModels: string;
+  models: LLMModel[];
+  modelConfig: ModelConfig;
+  ttsConfig: TTSConfig;
+  realtimeConfig: RealtimeConfig;
+  enableModelSearch: boolean;
+  enableThemeChange: boolean;
+  enablePromptHints: boolean;
+  enableClearContext: boolean;
+  enablePlugins: boolean;
+  enableShortcuts: boolean;
+};
+
+export const DEFAULT_CONFIG: AppConfig = {
+  lastUpdate: Date.now(),
   submitKey: SubmitKey.Enter,
   avatar: "1f603",
   fontSize: 14,
   fontFamily: "",
-  theme: Theme.Auto as Theme,
+  theme: Theme.Auto,
   tightBorder: !!config?.isApp,
   sendPreviewBubble: true,
   enableAutoGenerateTitle: true,
   sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
-
-  enableArtifacts: true, // show artifacts config
-
-  enableCodeFold: true, // code fold config
-
+  enableArtifacts: true,
+  enableCodeFold: true,
   disablePromptHint: false,
-
-  dontShowMaskSplashScreen: false, // dont show splash screen when create chat
-  hideBuiltinMasks: false, // dont add builtin masks
-
+  dontShowMaskSplashScreen: false,
+  hideBuiltinMasks: false,
   customModels: "",
   models: DEFAULT_MODELS as any as LLMModel[],
-
   modelConfig: {
     model: "gpt-4o-mini" as ModelType,
     providerName: "OpenAI" as ServiceProvider,
@@ -82,7 +124,6 @@ export const DEFAULT_CONFIG = {
     quality: "standard" as DalleQuality,
     style: "vivid" as DalleStyle,
   },
-
   ttsConfig: {
     enable: false,
     autoplay: false,
@@ -91,7 +132,6 @@ export const DEFAULT_CONFIG = {
     voice: DEFAULT_TTS_VOICE,
     speed: 1.0,
   },
-
   realtimeConfig: {
     enable: false,
     provider: "OpenAI" as ServiceProvider,
@@ -104,13 +144,37 @@ export const DEFAULT_CONFIG = {
     temperature: 0.9,
     voice: "alloy" as Voice,
   },
+  enableModelSearch: false,
+  enableThemeChange: false,
+  enablePromptHints: false,
+  enableClearContext: true,
+  enablePlugins: false,
+  enableShortcuts: false,
 };
 
 export type ChatConfig = typeof DEFAULT_CONFIG;
 
-export type ModelConfig = ChatConfig["modelConfig"];
-export type TTSConfig = ChatConfig["ttsConfig"];
-export type RealtimeConfig = ChatConfig["realtimeConfig"];
+export type TTSConfig = {
+  enable: boolean;
+  autoplay: boolean;
+  engine: TTSEngineType;
+  model: TTSModelType;
+  voice: TTSVoiceType;
+  speed: number;
+};
+
+export type RealtimeConfig = {
+  enable: boolean;
+  provider: ServiceProvider;
+  model: string;
+  apiKey: string;
+  azure: {
+    endpoint: string;
+    deployment: string;
+  };
+  temperature: number;
+  voice: Voice;
+};
 
 export function limitNumber(
   x: number,

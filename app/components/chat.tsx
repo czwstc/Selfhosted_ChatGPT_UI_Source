@@ -20,7 +20,6 @@ import SpeakStopIcon from "../icons/speak-stop.svg";
 import LoadingIcon from "../icons/three-dots.svg";
 import LoadingButtonIcon from "../icons/loading.svg";
 import PromptIcon from "../icons/prompt.svg";
-import MaskIcon from "../icons/mask.svg";
 import MaxIcon from "../icons/max.svg";
 import MinIcon from "../icons/min.svg";
 import ResetIcon from "../icons/reload.svg";
@@ -94,6 +93,7 @@ import {
   showConfirm,
   showPrompt,
   showToast,
+  SimpleMultipleSelector,
 } from "./ui-lib";
 import { useNavigate } from "react-router-dom";
 import {
@@ -108,7 +108,7 @@ import {
 import { Avatar } from "./emoji";
 import { ContextPrompts, MaskAvatar, MaskConfig } from "./mask";
 import { useMaskStore } from "../store/mask";
-import { ChatCommandPrefix, useChatCommand, useCommand } from "../command";
+import { useChatCommand, useCommand } from "../command";
 import { prettyObject } from "../utils/format";
 import { ExportMessageModal } from "./exporter";
 import { getClientConfig } from "../config/client";
@@ -491,18 +491,7 @@ export function ChatActions(props: {
     session.mask.modelConfig?.providerName || ServiceProvider.OpenAI;
   const allModels = useAllModels();
   const models = useMemo(() => {
-    const filteredModels = allModels.filter((m) => m.available);
-    const defaultModel = filteredModels.find((m) => m.isDefault);
-
-    if (defaultModel) {
-      const arr = [
-        defaultModel,
-        ...filteredModels.filter((m) => m !== defaultModel),
-      ];
-      return arr;
-    } else {
-      return filteredModels;
-    }
+    return allModels.filter((m) => m.available);
   }, [allModels]);
   const currentModelName = useMemo(() => {
     const model = models.find(
@@ -555,6 +544,8 @@ export function ChatActions(props: {
     }
   }, [chatStore, currentModel, models, session]);
 
+  const showModelSearchOption = config.enableModelSearch ?? false;
+
   return (
     <div className={styles["chat-input-actions"]}>
       <>
@@ -587,50 +578,49 @@ export function ChatActions(props: {
             icon={props.uploading ? <LoadingButtonIcon /> : <ImageIcon />}
           />
         )}
-        <ChatAction
-          onClick={nextTheme}
-          text={Locale.Chat.InputActions.Theme[theme]}
-          icon={
-            <>
-              {theme === Theme.Auto ? (
-                <AutoIcon />
-              ) : theme === Theme.Light ? (
-                <LightIcon />
-              ) : theme === Theme.Dark ? (
-                <DarkIcon />
-              ) : null}
-            </>
-          }
-        />
 
-        <ChatAction
-          onClick={props.showPromptHints}
-          text={Locale.Chat.InputActions.Prompt}
-          icon={<PromptIcon />}
-        />
+        {config.enableThemeChange && (
+          <ChatAction
+            onClick={nextTheme}
+            text={Locale.Chat.InputActions.Theme[theme]}
+            icon={
+              <>
+                {theme === Theme.Auto ? (
+                  <AutoIcon />
+                ) : theme === Theme.Light ? (
+                  <LightIcon />
+                ) : theme === Theme.Dark ? (
+                  <DarkIcon />
+                ) : null}
+              </>
+            }
+          />
+        )}
 
-        <ChatAction
-          onClick={() => {
-            navigate(Path.Masks);
-          }}
-          text={Locale.Chat.InputActions.Masks}
-          icon={<MaskIcon />}
-        />
+        {config.enablePromptHints && (
+          <ChatAction
+            onClick={props.showPromptHints}
+            text={Locale.Chat.InputActions.Prompt}
+            icon={<PromptIcon />}
+          />
+        )}
 
-        <ChatAction
-          text={Locale.Chat.InputActions.Clear}
-          icon={<BreakIcon />}
-          onClick={() => {
-            chatStore.updateTargetSession(session, (session) => {
-              if (session.clearContextIndex === session.messages.length) {
-                session.clearContextIndex = undefined;
-              } else {
-                session.clearContextIndex = session.messages.length;
-                session.memoryPrompt = ""; // will clear memory
-              }
-            });
-          }}
-        />
+        {config.enableClearContext && (
+          <ChatAction
+            text={Locale.Chat.InputActions.Clear}
+            icon={<BreakIcon />}
+            onClick={() => {
+              chatStore.updateTargetSession(session, (session) => {
+                if (session.clearContextIndex === session.messages.length) {
+                  session.clearContextIndex = undefined;
+                } else {
+                  session.clearContextIndex = session.messages.length;
+                  session.memoryPrompt = ""; // will clear memory
+                }
+              });
+            }}
+          />
+        )}
 
         <ChatAction
           onClick={() => setShowModelSelector(true)}
@@ -648,28 +638,25 @@ export function ChatActions(props: {
                   : ""
               }`,
               value: `${m.name}@${m?.provider?.providerName}`,
+              icon: <Avatar model={m.name} />,
             }))}
             onClose={() => setShowModelSelector(false)}
-            onSelection={(s) => {
-              if (s.length === 0) return;
-              const [model, providerName] = getModelProvider(s[0]);
+            onSelection={(m) => {
+              if (m.length === 0) return;
+              const [model, providerName] = getModelProvider(m[0]);
               chatStore.updateTargetSession(session, (session) => {
                 session.mask.modelConfig.model = model as ModelType;
                 session.mask.modelConfig.providerName =
                   providerName as ServiceProvider;
                 session.mask.syncGlobalConfig = false;
+                // 如果切换到非 gemini-2.0-flash-exp 模型，清除插件选择
+                if (model !== "gemini-2.0-flash-exp") {
+                  session.mask.plugin = [];
+                }
               });
-              if (providerName == "ByteDance") {
-                const selectedModel = models.find(
-                  (m) =>
-                    m.name == model &&
-                    m?.provider?.providerName == providerName,
-                );
-                showToast(selectedModel?.displayName ?? "");
-              } else {
-                showToast(model);
-              }
+              showToast(model);
             }}
+            showSearch={config.enableModelSearch ?? false}
           />
         )}
 
@@ -697,6 +684,7 @@ export function ChatActions(props: {
               });
               showToast(size);
             }}
+            showSearch={false}
           />
         )}
 
@@ -724,6 +712,7 @@ export function ChatActions(props: {
               });
               showToast(quality);
             }}
+            showSearch={false}
           />
         )}
 
@@ -751,16 +740,17 @@ export function ChatActions(props: {
               });
               showToast(style);
             }}
+            showSearch={false}
           />
         )}
 
         {showPlugins(currentProviderName, currentModel) && (
           <ChatAction
             onClick={() => {
-              if (pluginStore.getAll().length == 0) {
-                navigate(Path.Plugins);
-              } else {
+              if (currentModel === "gemini-2.0-flash-exp") {
                 setShowPluginSelector(true);
+              } else {
+                navigate(Path.Plugins);
               }
             }}
             text={Locale.Plugin.Name}
@@ -768,23 +758,33 @@ export function ChatActions(props: {
           />
         )}
         {showPluginSelector && (
-          <Selector
-            multiple
+          <SimpleMultipleSelector
+            items={[
+              ...(currentModel === "gemini-2.0-flash-exp"
+                ? [
+                    {
+                      title: Locale.Plugin.EnableWeb,
+                      value: "googleSearch",
+                    },
+                  ]
+                : []),
+              ...pluginStore.getAll().map((item) => ({
+                title: `${item?.title}@${item?.version}`,
+                value: item?.id,
+              })),
+            ]}
             defaultSelectedValue={chatStore.currentSession().mask?.plugin}
-            items={pluginStore.getAll().map((item) => ({
-              title: `${item?.title}@${item?.version}`,
-              value: item?.id,
-            }))}
             onClose={() => setShowPluginSelector(false)}
             onSelection={(s) => {
               chatStore.updateTargetSession(session, (session) => {
-                session.mask.plugin = s as string[];
+                session.mask.plugin = s;
               });
             }}
+            showSearch={false}
           />
         )}
 
-        {!isMobileScreen && (
+        {!isMobileScreen && config.enableShortcuts && (
           <ChatAction
             onClick={() => props.setShowShortcutKeyModal(true)}
             text={Locale.Chat.ShortcutKey.Title}
@@ -1039,17 +1039,12 @@ function _Chat() {
     setUserInput(text);
     const n = text.trim().length;
 
-    // clear search results
-    if (n === 0) {
+    // 只有在启用快捷指令功能时才处理 "/" 开头的输入
+    if (n === 1 && text === "/" && config.enablePromptHints) {
+      setPromptHints(promptStore.search(""));
+    } else if (!config.enablePromptHints || text !== "/" || n > 1) {
+      // 当功能关闭或不是单独的 "/" 时,清空提示
       setPromptHints([]);
-    } else if (text.match(ChatCommandPrefix)) {
-      setPromptHints(chatCommands.search(text));
-    } else if (!config.disablePromptHint && n < SEARCH_TEXT_LIMIT) {
-      // check if need to trigger auto completion
-      if (text.startsWith("/")) {
-        let searchText = text.slice(1);
-        onSearch(searchText);
-      }
     }
   };
 
@@ -1640,9 +1635,6 @@ function _Chat() {
             >
               {!session.topic ? DEFAULT_TOPIC : session.topic}
             </div>
-            <div className="window-header-sub-title">
-              {Locale.Chat.SubTitle(session.messages.length)}
-            </div>
           </div>
           <div className="window-actions">
             <div className="window-action-button">
@@ -1777,7 +1769,54 @@ function _Chat() {
                               ></IconButton>
                             </div>
                             {isUser ? (
-                              <Avatar avatar={config.avatar} />
+                              <div className={styles["chat-message-avatar"]}>
+                                <div className={styles["chat-message-edit"]}>
+                                  <IconButton
+                                    icon={<EditIcon />}
+                                    aria={Locale.Chat.Actions.Edit}
+                                    onClick={async () => {
+                                      const newMessage = await showPrompt(
+                                        Locale.Chat.Actions.Edit,
+                                        getMessageTextContent(message),
+                                        10,
+                                      );
+                                      let newContent:
+                                        | string
+                                        | MultimodalContent[] = newMessage;
+                                      const images = getMessageImages(message);
+                                      if (images.length > 0) {
+                                        newContent = [
+                                          { type: "text", text: newMessage },
+                                        ];
+                                        for (
+                                          let i = 0;
+                                          i < images.length;
+                                          i++
+                                        ) {
+                                          newContent.push({
+                                            type: "image_url",
+                                            image_url: {
+                                              url: images[i],
+                                            },
+                                          });
+                                        }
+                                      }
+                                      chatStore.updateTargetSession(
+                                        session,
+                                        (session) => {
+                                          const m = session.mask.context
+                                            .concat(session.messages)
+                                            .find((m) => m.id === message.id);
+                                          if (m) {
+                                            m.content = newContent;
+                                          }
+                                        },
+                                      );
+                                    }}
+                                  ></IconButton>
+                                </div>
+                                <div className={styles["empty-avatar"]}></div>
+                              </div>
                             ) : (
                               <>
                                 {["system"].includes(message.role) ? (
@@ -1950,7 +1989,9 @@ function _Chat() {
                         <div className={styles["chat-message-action-date"]}>
                           {isContext
                             ? Locale.Chat.IsContext
-                            : message.date.toLocaleString()}
+                            : message.role === "system"
+                            ? message.date.toLocaleString()
+                            : ""}
                         </div>
                       </div>
                     </div>
@@ -1999,7 +2040,11 @@ function _Chat() {
                   id="chat-input"
                   ref={inputRef}
                   className={styles["chat-input"]}
-                  placeholder={Locale.Chat.Input(submitKey)}
+                  placeholder={
+                    isMobileScreen
+                      ? Locale.Chat.MobileInput
+                      : Locale.Chat.Input(submitKey)
+                  }
                   onInput={(e) => onInput(e.currentTarget.value)}
                   value={userInput}
                   onKeyDown={onInputKeyDown}
@@ -2038,7 +2083,7 @@ function _Chat() {
                 )}
                 <IconButton
                   icon={<SendWhiteIcon />}
-                  text={Locale.Chat.Send}
+                  text={isMobileScreen ? undefined : Locale.Chat.Send}
                   className={styles["chat-input-send"]}
                   type="primary"
                   onClick={() => doSubmit(userInput)}

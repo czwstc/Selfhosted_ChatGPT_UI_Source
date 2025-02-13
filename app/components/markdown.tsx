@@ -4,6 +4,7 @@ import RemarkMath from "remark-math";
 import RemarkBreaks from "remark-breaks";
 import RehypeKatex from "rehype-katex";
 import RemarkGfm from "remark-gfm";
+import RehypeRaw from "rehype-raw";
 import RehypeHighlight from "rehype-highlight";
 import { useRef, useState, RefObject, useEffect, useMemo } from "react";
 import { copyToClipboard, useWindowSize } from "../utils";
@@ -23,6 +24,14 @@ import { useChatStore } from "../store";
 import { IconButton } from "./button";
 
 import { useAppConfig } from "../store/config";
+
+function Details(props: { children: React.ReactNode }) {
+  return <details>{props.children}</details>;
+}
+function Summary(props: { children: React.ReactNode }) {
+  return <summary>{props.children}</summary>;
+}
+
 import clsx from "clsx";
 
 export function Mermaid(props: { code: string }) {
@@ -269,13 +278,16 @@ function tryWrapHtmlCode(text: string) {
 
 function _MarkDownContent(props: { content: string }) {
   const escapedContent = useMemo(() => {
-    return tryWrapHtmlCode(escapeBrackets(props.content));
+    return tryWrapHtmlCode(
+      formatThinkText(escapeBrackets(props.content))
+    );
   }, [props.content]);
 
   return (
     <ReactMarkdown
       remarkPlugins={[RemarkMath, RemarkGfm, RemarkBreaks]}
       rehypePlugins={[
+        RehypeRaw,
         RehypeKatex,
         [
           RehypeHighlight,
@@ -309,6 +321,8 @@ function _MarkDownContent(props: { content: string }) {
           const target = isInternal ? "_self" : aProps.target ?? "_blank";
           return <a {...aProps} target={target} />;
         },
+        details: Details,
+        summary: Summary,
       }}
     >
       {escapedContent}
@@ -349,4 +363,21 @@ export function Markdown(
       )}
     </div>
   );
+}
+
+function formatThinkText(text: string): string {
+  // 检查是否以 <think> 开头但没有结束标签
+  if (text.startsWith("<think>") && !text.includes("</think>")) {
+    // 获取 <think> 后的所有内容
+    const thinkContent = text.slice("<think>".length);
+    // 渲染为"思考中"状态
+    return `<details>\n<summary>${Locale.NewChat.Thinking}</summary>\n\n${thinkContent}\n\n</details>`;
+  }
+
+  // 处理完整的 think 标签
+  const pattern = /^<think>([\s\S]*?)<\/think>/;
+  return text.replace(pattern, (match, thinkContent) => {
+    // 渲染为"思考完成"状态
+    return `<details>\n<summary>${Locale.NewChat.Think}</summary>\n\n${thinkContent}\n\n</details>`;
+  });
 }

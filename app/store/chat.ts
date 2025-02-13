@@ -1,4 +1,9 @@
-import { getMessageTextContent, trimTopic } from "../utils";
+// @ts-nocheck
+import { 
+  getMessageTextContent,
+  trimTopic,
+  getMessageTextContentWithoutThinking,
+} from "../utils";
 
 import { indexedDBStorage } from "@/app/utils/indexedDB-storage";
 import { nanoid } from "nanoid";
@@ -113,8 +118,8 @@ function getSummarizeModel(
   currentModel: string,
   providerName: string,
 ): string[] {
-  // if it is using gpt-* models, force to use 4o-mini to summarize
-  if (currentModel.startsWith("gpt") || currentModel.startsWith("chatgpt")) {
+  // force to use 4o-mini to summarize
+  if (true || currentModel.startsWith("gpt") || currentModel.startsWith("chatgpt")) {
     const configStore = useAppConfig.getState();
     const accessStore = useAccessStore.getState();
     const allModel = collectModelsWithDefaultModel(
@@ -622,7 +627,14 @@ export const useChatStore = createPersistStore(
         const api: ClientApi = getClientApi(providerName as ServiceProvider);
 
         // remove error messages if any
-        const messages = session.messages;
+        // const messages = session.messages;
+        const messages = session.messages.map((v) => ({
+          ...v,
+          content:
+            v.role === "assistant"
+              ? getMessageTextContentWithoutThinking(v)
+              : getMessageTextContent(v),
+        }));
 
         // should summarize topic after chating more than 50 words
         const SUMMARIZE_MIN_LEN = 50;

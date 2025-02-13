@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { ChatMessage, useAppConfig, useChatStore } from "../store";
 import { Updater } from "../typing";
 import { IconButton } from "./button";
-import { Avatar } from "./emoji";
 import { MaskAvatar } from "./mask";
 import Locale from "../locales";
 
@@ -209,7 +208,7 @@ export function MessageSelector(props: {
             >
               <div className={styles["avatar"]}>
                 {m.role === "user" ? (
-                  <Avatar avatar={config.avatar}></Avatar>
+                  <div className={styles["empty-avatar"]} />
                 ) : (
                   <MaskAvatar
                     avatar={session.mask.avatar}

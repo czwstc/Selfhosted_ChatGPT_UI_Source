@@ -5,7 +5,7 @@ require("../polyfill");
 import { useState, useEffect } from "react";
 import styles from "./home.module.scss";
 
-import BotIcon from "../icons/bot.svg";
+import NeatIcon from "../icons/neat.svg";
 import LoadingIcon from "../icons/three-dots.svg";
 
 import { getCSSVar, useMobileScreen } from "../utils";
@@ -14,7 +14,7 @@ import dynamic from "next/dynamic";
 import { Path, SlotID } from "../constant";
 import { ErrorBoundary } from "./error";
 
-import { getISOLang, getLang } from "../locales";
+import { getISOLang } from "../locales";
 
 import {
   HashRouter as Router,
@@ -33,7 +33,7 @@ import clsx from "clsx";
 export function Loading(props: { noLogo?: boolean }) {
   return (
     <div className={clsx("no-dark", styles["loading-content"])}>
-      {!props.noLogo && <BotIcon />}
+      {!props.noLogo && <NeatIcon width={30} height={30} />}
       <LoadingIcon />
     </div>
   );
@@ -203,7 +203,6 @@ function Screen() {
     <div
       className={clsx(styles.container, {
         [styles["tight-container"]]: shouldTightBorder,
-        [styles["rtl-screen"]]: getLang() === "ar",
       })}
     >
       {renderContent()}

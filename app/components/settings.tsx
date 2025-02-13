@@ -9,7 +9,6 @@ import CopyIcon from "../icons/copy.svg";
 import ClearIcon from "../icons/clear.svg";
 import LoadingIcon from "../icons/three-dots.svg";
 import EditIcon from "../icons/edit.svg";
-import FireIcon from "../icons/fire.svg";
 import EyeIcon from "../icons/eye.svg";
 import DownloadIcon from "../icons/download.svg";
 import UploadIcon from "../icons/upload.svg";
@@ -19,14 +18,12 @@ import ConfirmIcon from "../icons/confirm.svg";
 import ConnectionIcon from "../icons/connection.svg";
 import CloudSuccessIcon from "../icons/cloud-success.svg";
 import CloudFailIcon from "../icons/cloud-fail.svg";
-import { trackSettingsPageGuideToCPaymentClick } from "../utils/auth-settings-events";
 import {
   Input,
   List,
   ListItem,
   Modal,
   PasswordInput,
-  Popover,
   Select,
   showConfirm,
   showToast,
@@ -71,14 +68,12 @@ import {
   UPDATE_URL,
   Stability,
   Iflytek,
-  SAAS_CHAT_URL,
   ChatGLM,
 } from "../constant";
 import { Prompt, SearchService, usePromptStore } from "../store/prompt";
 import { ErrorBoundary } from "./error";
 import { InputRange } from "./input-range";
 import { useNavigate } from "react-router-dom";
-import { Avatar, AvatarPicker } from "./emoji";
 import { getClientConfig } from "../config/client";
 import { useSyncStore } from "../store/sync";
 import { nanoid } from "nanoid";
@@ -686,31 +681,6 @@ export function Settings() {
           accessStore.update(
             (access) => (access.accessCode = e.currentTarget.value),
           );
-        }}
-      />
-    </ListItem>
-  );
-
-  const saasStartComponent = (
-    <ListItem
-      className={styles["subtitle-button"]}
-      title={
-        Locale.Settings.Access.SaasStart.Title +
-        `${Locale.Settings.Access.SaasStart.Label}`
-      }
-      subTitle={Locale.Settings.Access.SaasStart.SubTitle}
-    >
-      <IconButton
-        aria={
-          Locale.Settings.Access.SaasStart.Title +
-          Locale.Settings.Access.SaasStart.ChatNow
-        }
-        icon={<FireIcon />}
-        type={"primary"}
-        text={Locale.Settings.Access.SaasStart.ChatNow}
-        onClick={() => {
-          trackSettingsPageGuideToCPaymentClick();
-          window.location.href = SAAS_CHAT_URL;
         }}
       />
     </ListItem>
@@ -1401,32 +1371,6 @@ export function Settings() {
       </div>
       <div className={styles["settings"]}>
         <List>
-          <ListItem title={Locale.Settings.Avatar}>
-            <Popover
-              onClose={() => setShowEmojiPicker(false)}
-              content={
-                <AvatarPicker
-                  onEmojiClick={(avatar: string) => {
-                    updateConfig((config) => (config.avatar = avatar));
-                    setShowEmojiPicker(false);
-                  }}
-                />
-              }
-              open={showEmojiPicker}
-            >
-              <div
-                aria-label={Locale.Settings.Avatar}
-                tabIndex={0}
-                className={styles.avatar}
-                onClick={() => {
-                  setShowEmojiPicker(!showEmojiPicker);
-                }}
-              >
-                <Avatar avatar={config.avatar} />
-              </div>
-            </Popover>
-          </ListItem>
-
           <ListItem
             title={Locale.Settings.Update.Version(currentVersion ?? "unknown")}
             subTitle={
@@ -1600,21 +1544,102 @@ export function Settings() {
               }
             ></input>
           </ListItem>
+
           <ListItem
             title={Locale.Mask.Config.CodeFold.Title}
             subTitle={Locale.Mask.Config.CodeFold.SubTitle}
           >
             <input
-              aria-label={Locale.Mask.Config.CodeFold.Title}
               type="checkbox"
               checked={config.enableCodeFold}
-              data-testid="enable-code-fold-checkbox"
               onChange={(e) =>
                 updateConfig(
                   (config) => (config.enableCodeFold = e.currentTarget.checked),
                 )
               }
-            ></input>
+            />
+          </ListItem>
+        </List>
+
+        <List>
+          <ListItem
+            title={Locale.Settings.EnableModelSearch}
+            subTitle={Locale.Settings.EnableModelSearchSubTitle}
+          >
+            <input
+              type="checkbox"
+              checked={config.enableModelSearch}
+              onChange={(e) =>
+                updateConfig(
+                  (config) =>
+                    (config.enableModelSearch = e.currentTarget.checked),
+                )
+              }
+            />
+          </ListItem>
+
+          <ListItem
+            title={Locale.Settings.EnableThemeChange.Title}
+            subTitle={Locale.Settings.EnableThemeChange.SubTitle}
+          >
+            <input
+              type="checkbox"
+              checked={config.enableThemeChange}
+              onChange={(e) =>
+                updateConfig(
+                  (config) =>
+                    (config.enableThemeChange = e.currentTarget.checked),
+                )
+              }
+            />
+          </ListItem>
+
+          <ListItem
+            title={Locale.Settings.EnablePromptHints.Title}
+            subTitle={Locale.Settings.EnablePromptHints.SubTitle}
+          >
+            <input
+              type="checkbox"
+              checked={config.enablePromptHints}
+              onChange={(e) =>
+                updateConfig(
+                  (config) =>
+                    (config.enablePromptHints = e.currentTarget.checked),
+                )
+              }
+            />
+          </ListItem>
+
+          <ListItem
+            title={Locale.Settings.EnableClearContext.Title}
+            subTitle={Locale.Settings.EnableClearContext.SubTitle}
+          >
+            <input
+              type="checkbox"
+              checked={config.enableClearContext}
+              onChange={(e) =>
+                updateConfig(
+                  (config) =>
+                    (config.enableClearContext = e.currentTarget.checked),
+                )
+              }
+            />
+          </ListItem>
+
+          <ListItem
+            title={Locale.Settings.EnableShortcuts.Title}
+            subTitle={Locale.Settings.EnableShortcuts.SubTitle}
+          >
+            <input
+              type="checkbox"
+              checked={config.enableShortcuts}
+              onChange={(e) =>
+                updateConfig(
+                  (config) =>
+                    (config.enableShortcuts = e.currentTarget.checked),
+                )
+              }
+            />
           </ListItem>
         </List>
 
@@ -1692,7 +1717,6 @@ export function Settings() {
         </List>
 
         <List id={SlotID.CustomModel}>
-          {saasStartComponent}
           {accessCodeComponent}
 
           {!accessStore.hideUserApiKey && (

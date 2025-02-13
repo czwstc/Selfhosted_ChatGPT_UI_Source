@@ -1,7 +1,6 @@
 import { getClientConfig } from "../config/client";
 import { SubmitKey } from "../store/config";
 import { LocaleType } from "./index";
-import { SAAS_CHAT_UTM_URL } from "@/app/constant";
 // if you are adding a new translation, please use PartialLocaleType instead of LocaleType
 
 const isApp = !!getClientConfig()?.isApp;
@@ -10,12 +9,10 @@ const en: LocaleType = {
   Error: {
     Unauthorized: isApp
       ? `😆 Oops, there's an issue. No worries:
-     \\ 1️⃣ New here? [Click to start chatting now 🚀](${SAAS_CHAT_UTM_URL})
-     \\ 2️⃣ Want to use your own OpenAI resources? [Click here](/#/settings) to change settings ⚙️`
+     \\ 1️⃣ Want to use your own API resources? [Click here](/#/settings) to change settings ⚙️`
       : `😆 Oops, there's an issue. Let's fix it:
-     \ 1️⃣ New here? [Click to start chatting now 🚀](${SAAS_CHAT_UTM_URL})
-     \ 2️⃣ Using a private setup? [Click here](/#/auth) to enter your key 🔑
-     \ 3️⃣ Want to use your own OpenAI resources? [Click here](/#/settings) to change settings ⚙️
+     \ 1️⃣ [Click here](/#/auth) to enter your key 🔑
+     \ 2️⃣ Want to use your own API resources? [Click here](/#/settings) to change settings ⚙️
      `,
   },
   Auth: {
@@ -26,9 +23,6 @@ const en: LocaleType = {
     Input: "access code",
     Confirm: "Confirm",
     Later: "Later",
-    SaasTips: "Too Complex, Use Immediately Now",
-    TopTips:
-      "🥳 NextChat AI launch promotion: Instantly unlock the latest models like OpenAI o1, GPT-4o, Claude-3.5!",
   },
   ChatItem: {
     ChatItemCount: (count: number) => `${count} messages`,
@@ -90,8 +84,9 @@ const en: LocaleType = {
       if (submitKey === String(SubmitKey.Enter)) {
         inputHints += ", Shift + Enter to wrap";
       }
-      return inputHints + ", / to search prompts, : to use commands";
+      return inputHints;
     },
+    MobileInput: "Type a message...",
     Send: "Send",
     StartSpeak: "Start Speak",
     StopSpeak: "Stop Speak",
@@ -180,7 +175,6 @@ const en: LocaleType = {
       Name: "Language", // ATTENTION: if you wanna add a new translation, please do not translate this value, leave it as `Language`
       All: "All Languages",
     },
-    Avatar: "Avatar",
     FontSize: {
       Title: "Font Size",
       SubTitle: "Adjust font size of chat content",
@@ -313,14 +307,6 @@ const en: LocaleType = {
       NoAccess: "Enter API Key to check balance",
     },
     Access: {
-      SaasStart: {
-        Title: "Use NextChat AI",
-        Label: " (Most Cost-Effective Option)",
-        SubTitle:
-          "Maintained by NextChat, zero setup needed, unlock OpenAI o1, GPT-4o," +
-          " Claude-3.5 and more",
-        ChatNow: "Start Now",
-      },
       AccessCode: {
         Title: "Access Code",
         SubTitle: "Access control Enabled",
@@ -603,6 +589,30 @@ const en: LocaleType = {
         SubTitle: "Higher values result in more random responses",
       },
     },
+    EnableModelSearch: "Enable Model Search",
+    EnableModelSearchSubTitle:
+      "Enable to search and filter when selecting models",
+    EnableThemeChange: {
+      Title: "Enable Theme Switch",
+      SubTitle: "Show theme switch button in chat",
+    },
+    EnablePromptHints: {
+      Title: "Enable Prompt Hints Feature",
+      SubTitle:
+        "When enabled, you can trigger prompts with /, when disabled, the prompt feature will be completely turned off",
+    },
+    EnableClearContext: {
+      Title: "Enable Clear Context",
+      SubTitle: "Show clear context button in chat",
+    },
+    EnablePlugins: {
+      Title: "Enable Plugins",
+      SubTitle: "Show plugins button in chat",
+    },
+    EnableShortcuts: {
+      Title: "Enable Shortcuts",
+      SubTitle: "Show shortcuts button in chat",
+    },
   },
   Store: {
     DefaultTopic: "New Conversation",
@@ -654,7 +664,8 @@ const en: LocaleType = {
     },
   },
   Plugin: {
-    Name: "Plugin",
+    Name: "Plugins",
+    EnableWeb: "Enable Web Access",
     Page: {
       Title: "Plugins",
       SubTitle: (count: number) => `${count} plugins`,
@@ -752,6 +763,8 @@ const en: LocaleType = {
     More: "Find More",
     NotShow: "Never Show Again",
     ConfirmNoShow: "Confirm to disable？You can enable it in settings later.",
+    Thinking: "Thinking...",
+    Think: "Content of Thought",
   },
 
   UI: {
@@ -833,6 +846,6 @@ const en: LocaleType = {
     GenerateParams: "Generate Params",
     Detail: "Detail",
   },
-};
+} as const;
 
 export default en;

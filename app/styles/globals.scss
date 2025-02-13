@@ -1,6 +1,40 @@
 @import "./animation.scss";
 @import "./window.scss";
 
+// Logo text styles
+.logo-text {
+  font-size: 24px;
+  line-height: 1.3;
+  letter-spacing: 0.03em;
+  font-weight: 500;
+  margin-bottom: 2px;
+  padding: 0 2px;
+  margin-left: -2px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  transition: none !important;
+  animation: none !important;
+  transform: none !important;
+  text-size-adjust: none;
+  -webkit-text-size-adjust: none;
+  visibility: visible !important;
+  opacity: 1 !important;
+  
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  * {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+// Logo text preload styles
+.logo-text-preload {
+  opacity: 0;
+  visibility: hidden;
+}
+
 @mixin light {
   --theme: light;
 
@@ -8,11 +42,12 @@
   --white: white;
   --black: rgb(48, 48, 48);
   --gray: rgb(250, 250, 250);
-  --primary: rgb(29, 147, 171);
-  --second: rgb(231, 248, 255);
+  --primary: rgb(49, 94, 248);
+  --second: rgb(243, 243, 246);
   --hover-color: #f3f3f3;
   --bar-color: rgba(0, 0, 0, 0.1);
   --theme-color: var(--gray);
+  --scrollbar-thumb-color: #ddd;
 
   /* shadow */
   --shadow: 50px 50px 100px 10px rgb(0, 0, 0, 0.1);
@@ -29,8 +64,8 @@
   --white: rgb(30, 30, 30);
   --black: rgb(187, 187, 187);
   --gray: rgb(21, 21, 21);
-  --primary: rgb(29, 147, 171);
-  --second: rgb(27 38 42);
+  --primary: rgb(49, 94, 248);
+  --second: rgb(38, 38, 44);
   --hover-color: #323232;
 
   --bar-color: rgba(255, 255, 255, 0.1);
@@ -38,6 +73,7 @@
   --border-in-light: 1px solid rgba(255, 255, 255, 0.192);
 
   --theme-color: var(--gray);
+  --scrollbar-thumb-color: #333;
 
   div:not(.no-dark) > svg {
     filter: invert(0.5);
@@ -89,9 +125,10 @@
 
 html {
   height: var(--full-height);
-
-  font-family: "Noto Sans", "SF Pro SC", "SF Pro Text", "SF Pro Icons",
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro SC", "SF Pro Text", "SF Pro Icons",
     "PingFang SC", "Helvetica Neue", "Helvetica", "Arial", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
@@ -118,9 +155,8 @@ body {
 }
 
 ::-webkit-scrollbar {
-  --bar-width: 10px;
-  width: var(--bar-width);
-  height: var(--bar-width);
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -128,10 +164,10 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: var(--bar-color);
-  border-radius: 20px;
+  background-color: var(--scrollbar-thumb-color);
+  border-radius: 3px;
   background-clip: content-box;
-  border: 1px solid transparent;
+  border: none;
 }
 
 select {
@@ -398,4 +434,25 @@ pre {
 
 .copyable {
   user-select: text;
+}
+
+// 为副标题添加样式
+.sidebar-sub-title {
+  font-size: 14px;
+  line-height: 1.4;
+  letter-spacing: 0.03em;
+  color: var(--black);
+  opacity: 0.75;
+  margin-top: 4px;
+  padding: 0 2px;
+  margin-left: -2px;
+  font-weight: 400;
+}
+
+// 添加容器样式确保对齐
+.sidebar-title-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding-left: 2px;
 }

@@ -1,0 +1,37 @@
+.model-avatar {
+  // 移除所有可能的边框和背景
+  border: none !important;
+  background: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  
+  // 设置大小
+  width: 30px;
+  height: 30px;
+
+  // 确保SVG完全透明
+  opacity: 1;
+  mix-blend-mode: normal;
+}
+
+.model-avatar:hover {
+  border: none !important;
+  background: none !important;
+  box-shadow: none !important;
+}
+
+// 移除父容器的所有背景和边框
+.no-dark {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+// 如果用户头像也需要同样处理
+.user-avatar {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+} 

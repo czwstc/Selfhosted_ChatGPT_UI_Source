@@ -91,6 +91,15 @@
     display: flex;
     justify-content: center;
     flex-direction: column;
+    align-items: center;
+    width: 65px;
+
+    button {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
 
     button:not(:last-child) {
       margin-bottom: 10px;

@@ -2,7 +2,7 @@
 name = "nextchat"
 version = "0.1.0"
 description = "A cross platform app for LLM ChatBot."
-authors = ["Yidadaa"]
+authors = ["Tianzhen"]
 license = "mit"
 repository = ""
 default-run = "nextchat"
@@ -23,7 +23,6 @@ tauri = { version = "1.5.4", features = [ "http-all",
     "clipboard-all",
     "dialog-all",
     "shell-open",
-    "updater",
     "window-close",
     "window-hide",
     "window-maximize",

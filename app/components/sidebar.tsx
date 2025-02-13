@@ -5,12 +5,12 @@ import styles from "./home.module.scss";
 import { IconButton } from "./button";
 import SettingsIcon from "../icons/settings.svg";
 import GithubIcon from "../icons/github.svg";
-import ChatGptIcon from "../icons/chatgpt.svg";
 import AddIcon from "../icons/add.svg";
 import DeleteIcon from "../icons/delete.svg";
 import MaskIcon from "../icons/mask.svg";
 import DragIcon from "../icons/drag.svg";
 import DiscoveryIcon from "../icons/discovery.svg";
+import NeatIcon from "../icons/neat.svg";
 
 import Locale from "../locales";
 
@@ -29,7 +29,7 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import { isIOS, useMobileScreen } from "../utils";
 import dynamic from "next/dynamic";
-import { showConfirm, Selector } from "./ui-lib";
+import { showConfirm, SimpleSelector } from "./ui-lib";
 import clsx from "clsx";
 
 const ChatList = dynamic(async () => (await import("./chat-list")).ChatList, {
@@ -178,7 +178,11 @@ export function SideBarHeader(props: {
         data-tauri-drag-region
       >
         <div className={styles["sidebar-title-container"]}>
-          <div className={styles["sidebar-title"]} data-tauri-drag-region>
+          <div
+            className={clsx(styles["sidebar-title"], "logo-text")}
+            data-tauri-drag-region
+            style={{ visibility: "visible" }}
+          >
             {title}
           </div>
           <div className={styles["sidebar-sub-title"]}>{subTitle}</div>
@@ -231,9 +235,9 @@ export function SideBar(props: { className?: string }) {
       {...props}
     >
       <SideBarHeader
-        title="NextChat"
-        subTitle="Build your own AI assistant."
-        logo={<ChatGptIcon />}
+        title="NeatChat"
+        subTitle="A Better AI assistant."
+        logo={<NeatIcon width={44} height={44} />}
         shouldNarrow={shouldNarrow}
       >
         <div className={styles["sidebar-header-bar"]}>
@@ -259,7 +263,7 @@ export function SideBar(props: { className?: string }) {
           />
         </div>
         {showPluginSelector && (
-          <Selector
+          <SimpleSelector
             items={[
               ...PLUGINS.map((item) => {
                 return {

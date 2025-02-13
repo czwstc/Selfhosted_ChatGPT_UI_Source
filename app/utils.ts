@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { showToast } from "./components/ui-lib";
 import Locale from "./locales";
 import { RequestMessage } from "./client/api";
-import { ServiceProvider } from "./constant";
 // import { fetch as tauriFetch, ResponseType } from "@tauri-apps/api/http";
 import { fetch as tauriStreamFetch } from "./utils/stream";
 
@@ -13,8 +12,8 @@ export function trimTopic(topic: string) {
   return (
     topic
       // fix for gemini
-      .replace(/^["“”*]+|["“”*]+$/g, "")
-      .replace(/[，。！？”“"、,.!?*]*$/, "")
+      .replace(/^["""*]+|["""*]+$/g, "")
+      .replace(/[，。！？""""、,.!?*]*$/, "")
   );
 }
 
@@ -238,6 +237,23 @@ export function getMessageTextContent(message: RequestMessage) {
   return "";
 }
 
+export function getMessageTextContentWithoutThinking(message: RequestMessage) {
+  let content = "";
+  if (typeof message.content === "string") {
+    content = message.content;
+  } else {
+    for (const c of message.content) {
+      if (c.type === "text") {
+        content = c.text ?? "";
+        break;
+      }
+    }
+  }
+  // 匹配以 <think> 开头，至闭合 </think>之间的内容，如果没有闭合，则匹配到结尾
+  const pattern = /^<think>[\s\S]*?(<\/think>|$)/;
+  return content.replace(pattern, "").trim(); // 直接移除匹配的部分
+}
+
 export function getMessageImages(message: RequestMessage): string[] {
   if (typeof message.content === "string") {
     return [];
@@ -252,8 +268,7 @@ export function getMessageImages(message: RequestMessage): string[] {
 }
 
 export function isVisionModel(model: string) {
-  // Note: This is a better way using the TypeScript feature instead of `&&` or `||` (ts v5.5.0-dev.20240314 I've been using)
-
+  const modelLower = model.toLowerCase();
   const excludeKeywords = ["claude-3-5-haiku-20241022"];
   const visionKeywords = [
     "vision",
@@ -261,18 +276,22 @@ export function isVisionModel(model: string) {
     "claude-3",
     "gemini-1.5",
     "gemini-exp",
+    "gemini-2.0-flash-exp",
     "learnlm",
-    "qwen-vl",
-    "qwen2-vl",
+    "vl",
   ];
   const isGpt4Turbo =
-    model.includes("gpt-4-turbo") && !model.includes("preview");
+    modelLower.includes("gpt-4-turbo") && !modelLower.includes("preview");
 
   return (
-    !excludeKeywords.some((keyword) => model.includes(keyword)) &&
-    (visionKeywords.some((keyword) => model.includes(keyword)) ||
+    !excludeKeywords.some((keyword) =>
+      modelLower.includes(keyword.toLowerCase()),
+    ) &&
+    (visionKeywords.some((keyword) =>
+      modelLower.includes(keyword.toLowerCase()),
+    ) ||
       isGpt4Turbo ||
-      isDalle3(model))
+      isDalle3(modelLower))
   );
 }
 
@@ -280,22 +299,9 @@ export function isDalle3(model: string) {
   return "dall-e-3" === model;
 }
 
-export function showPlugins(provider: ServiceProvider, model: string) {
-  if (
-    provider == ServiceProvider.OpenAI ||
-    provider == ServiceProvider.Azure ||
-    provider == ServiceProvider.Moonshot ||
-    provider == ServiceProvider.ChatGLM
-  ) {
-    return true;
-  }
-  if (provider == ServiceProvider.Anthropic && !model.includes("claude-2")) {
-    return true;
-  }
-  if (provider == ServiceProvider.Google && !model.includes("vision")) {
-    return true;
-  }
-  return false;
+export function showPlugins(providerName?: string, model?: string) {
+  // 只在 gemini-2.0-flash-exp 模型下显示插件按钮
+  return model === "gemini-2.0-flash-exp";
 }
 
 export function fetch(

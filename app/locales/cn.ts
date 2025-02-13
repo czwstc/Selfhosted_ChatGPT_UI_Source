@@ -1,6 +1,5 @@
 import { getClientConfig } from "../config/client";
 import { SubmitKey } from "../store/config";
-import { SAAS_CHAT_UTM_URL } from "@/app/constant";
 
 const isApp = !!getClientConfig()?.isApp;
 
@@ -9,12 +8,10 @@ const cn = {
   Error: {
     Unauthorized: isApp
       ? `😆 对话遇到了一些问题，不用慌:
-       \\ 1️⃣ 想要零配置开箱即用，[点击这里立刻开启对话 🚀](${SAAS_CHAT_UTM_URL})
-       \\ 2️⃣ 如果你想消耗自己的 OpenAI 资源，点击[这里](/#/settings)修改设置 ⚙️`
+       \\ 1️⃣ 如果你想消耗自己的 API 资源，点击[这里](/#/settings)修改设置 ⚙️`
       : `😆 对话遇到了一些问题，不用慌:
-       \ 1️⃣ 想要零配置开箱即用，[点击这里立刻开启对话 🚀](${SAAS_CHAT_UTM_URL})
-       \ 2️⃣ 如果你正在使用私有部署版本，点击[这里](/#/auth)输入访问秘钥 🔑
-       \ 3️⃣ 如果你想消耗自己的 OpenAI 资源，点击[这里](/#/settings)修改设置 ⚙️
+       \ 1️⃣ 点击[这里](/#/auth)输入访问秘钥 🔑
+       \ 2️⃣ 如果你想消耗自己的 API 资源，点击[这里](/#/settings)修改设置 ⚙️
        `,
   },
   Auth: {
@@ -25,9 +22,6 @@ const cn = {
     Input: "在此处填写访问码",
     Confirm: "确认",
     Later: "稍后再说",
-    SaasTips: "配置太麻烦，想要立即使用",
-    TopTips:
-      "🥳 NextChat AI 首发优惠，立刻解锁 OpenAI o1, GPT-4o, Claude-3.5 等最新大模型",
   },
   ChatItem: {
     ChatItemCount: (count: number) => `${count} 条对话`,
@@ -89,8 +83,9 @@ const cn = {
       if (submitKey === String(SubmitKey.Enter)) {
         inputHints += "，Shift + Enter 换行";
       }
-      return inputHints + "，/ 触发补全，: 触发命令";
+      return inputHints;
     },
+    MobileInput: "输入消息...",
     Send: "发送",
     StartSpeak: "说话",
     StopSpeak: "停止",
@@ -179,7 +174,6 @@ const cn = {
       Name: "Language", // ATTENTION: if you wanna add a new translation, please do not translate this value, leave it as `Language`
       All: "所有语言",
     },
-    Avatar: "头像",
     FontSize: {
       Title: "字体大小",
       SubTitle: "聊天内容的字体大小",
@@ -262,6 +256,7 @@ const cn = {
       },
       ImportFailed: "导入失败",
     },
+
     Mask: {
       Splash: {
         Title: "面具启动页",
@@ -310,13 +305,6 @@ const cn = {
     },
 
     Access: {
-      SaasStart: {
-        Title: "使用 NextChat AI",
-        Label: "（性价比最高的方案）",
-        SubTitle:
-          "由 NextChat 官方维护, 零配置开箱即用，支持 OpenAI o1, GPT-4o, Claude-3.5 等最新大模型",
-        ChatNow: "立刻对话",
-      },
       AccessCode: {
         Title: "访问密码",
         SubTitle: "管理员已开启加密访问",
@@ -595,6 +583,28 @@ const cn = {
         SubTitle: "值越大，回复越随机",
       },
     },
+    EnableModelSearch: "启用模型搜索",
+    EnableModelSearchSubTitle: "启用之后可以在选择模型时搜索过滤",
+    EnableThemeChange: {
+      Title: "启用主题切换",
+      SubTitle: "是否在对话框中显示主题切换按钮",
+    },
+    EnablePromptHints: {
+      Title: "启用快捷指令功能",
+      SubTitle: "开启后可通过 / 触发快捷指令功能，关闭后将完全禁用快捷指令",
+    },
+    EnableClearContext: {
+      Title: "启用清除聊天",
+      SubTitle: "是否在对话框中显示清除聊天按钮",
+    },
+    EnablePlugins: {
+      Title: "启用插件",
+      SubTitle: "是否在对话框中显示插件按钮",
+    },
+    EnableShortcuts: {
+      Title: "启用快捷键",
+      SubTitle: "是否在对话框中显示快捷键按钮",
+    },
   },
   Store: {
     DefaultTopic: "新的聊天",
@@ -603,7 +613,7 @@ const cn = {
     Prompt: {
       History: (content: string) => "这是历史聊天总结作为前情提要：" + content,
       Topic:
-        "使用四到五个字直接返回这句话的简要主题，不要解释、不要标点、不要语气词、不要多余文本，不要加粗，如果没有主题，请直接返回“闲聊”",
+        '使用四到五个字直接返回这句话的简要主题，不要解释、不要标点、不要语气词、不要多余文本，不要加粗，如果没有主题，请直接返回"闲聊"',
       Summarize:
         "简要总结一下对话内容，用作后续的上下文提示 prompt，控制在 200 字以内",
     },
@@ -646,6 +656,7 @@ const cn = {
   },
   Plugin: {
     Name: "插件",
+    EnableWeb: "开启联网",
     Page: {
       Title: "插件",
       SubTitle: (count: number) => `${count} 个插件`,
@@ -741,6 +752,8 @@ const cn = {
     Title: "挑选一个面具",
     SubTitle: "现在开始，与面具背后的灵魂思维碰撞",
     More: "查看全部",
+    Think: "思考过程",
+    Thinking: "正在思考中...",
   },
 
   URLCommand: {

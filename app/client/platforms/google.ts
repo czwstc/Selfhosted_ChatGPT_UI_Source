@@ -75,12 +75,29 @@ export class GeminiProApi implements LLMApi {
     const apiClient = this;
     let multimodal = false;
 
+    // 添加联网状态日志
+    const session = useChatStore.getState().currentSession();
+    console.log(
+      "[Chat] Web Access:",
+      session.mask?.plugin?.includes("googleSearch") ? "Enabled" : "Disabled",
+    );
+
     // try get base64image from local cache image_url
     const _messages: ChatOptions["messages"] = [];
     for (const v of options.messages) {
       const content = await preProcessImageContent(v.content);
       _messages.push({ role: v.role, content });
     }
+
+    // 只有当用户选择了 googleSearch 时才创建 tools
+    const tools = session.mask?.plugin?.includes("googleSearch")
+      ? [
+          {
+            googleSearch: {},
+          },
+        ]
+      : undefined;
+
     const messages = _messages.map((v) => {
       let parts: any[] = [{ text: getMessageTextContent(v) }];
       if (isVisionModel(options.config.model)) {
@@ -135,14 +152,11 @@ export class GeminiProApi implements LLMApi {
     };
     const requestPayload = {
       contents: messages,
+      ...(tools ? { tools } : {}),
       generationConfig: {
-        // stopSequences: [
-        //   "Title"
-        // ],
         temperature: modelConfig.temperature,
         maxOutputTokens: modelConfig.max_tokens,
         topP: modelConfig.top_p,
-        // "topK": modelConfig.top_k,
       },
       safetySettings: [
         {
@@ -188,7 +202,7 @@ export class GeminiProApi implements LLMApi {
       );
 
       if (shouldStream) {
-        const [tools, funcs] = usePluginStore
+        const [_, funcs] = usePluginStore
           .getState()
           .getAsTools(
             useChatStore.getState().currentSession().mask?.plugin || [],
@@ -197,11 +211,7 @@ export class GeminiProApi implements LLMApi {
           chatPath,
           requestPayload,
           getHeaders(),
-          // @ts-ignore
-          tools.length > 0
-            ? // @ts-ignore
-              [{ functionDeclarations: tools.map((tool) => tool.function) }]
-            : [],
+          tools || [], // 如果 tools 未定义，传入空数组
           funcs,
           controller,
           // parseSSE

@@ -24,6 +24,7 @@ import React, {
 } from "react";
 import { IconButton } from "./button";
 import clsx from "clsx";
+import { useMobileScreen } from "../utils";
 
 export function Popover(props: {
   children: JSX.Element;
@@ -479,11 +480,13 @@ export function Selector<T>(props: {
     subTitle?: string;
     value: T;
     disable?: boolean;
+    icon?: JSX.Element;
   }>;
   defaultSelectedValue?: T[] | T;
   onSelection?: (selection: T[]) => void;
   onClose?: () => void;
   multiple?: boolean;
+  showSearch?: boolean;
 }) {
   const [selectedValues, setSelectedValues] = useState<T[]>(
     Array.isArray(props.defaultSelectedValue)
@@ -491,6 +494,22 @@ export function Selector<T>(props: {
       : props.defaultSelectedValue !== undefined
       ? [props.defaultSelectedValue]
       : [],
+  );
+
+  // 添加搜索状态
+  const [searchText, setSearchText] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // 添加保持焦点的效果
+  useEffect(() => {
+    const keepFocus = () => inputRef.current?.focus();
+    document.addEventListener("click", keepFocus);
+    return () => document.removeEventListener("click", keepFocus);
+  }, []);
+
+  // 过滤模型列表
+  const filteredItems = props.items.filter((item) =>
+    item.title.toLowerCase().includes(searchText.toLowerCase()),
   );
 
   const handleSelection = (e: MouseEvent, value: T) => {
@@ -508,13 +527,32 @@ export function Selector<T>(props: {
     }
   };
 
+  const isMobileScreen = useMobileScreen();
+
   return (
-    <div className={styles["selector"]} onClick={() => props.onClose?.()}>
-      <div className={styles["selector-content"]}>
+    <div className={styles["selector"]} onClick={props.onClose}>
+      <div
+        className={styles["selector-content"]}
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
+      >
+        {props.showSearch !== false && (
+          <div className={styles["selector-search"]}>
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="搜索模型"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              autoFocus={!isMobileScreen}
+            />
+          </div>
+        )}
+
         <List>
-          {props.items.map((item, i) => {
-            const selected = selectedValues.includes(item.value);
-            return (
+          {(props.showSearch === false ? props.items : filteredItems).map(
+            (item, i) => (
               <ListItem
                 className={clsx(styles["selector-item"], {
                   [styles["selector-item-disabled"]]: item.disable,
@@ -522,6 +560,7 @@ export function Selector<T>(props: {
                 key={i}
                 title={item.title}
                 subTitle={item.subTitle}
+                icon={item.icon}
                 onClick={(e) => {
                   if (item.disable) {
                     e.stopPropagation();
@@ -530,26 +569,20 @@ export function Selector<T>(props: {
                   }
                 }}
               >
-                {selected ? (
-                  <div
-                    style={{
-                      height: 10,
-                      width: 10,
-                      backgroundColor: "var(--primary)",
-                      borderRadius: 10,
-                    }}
-                  ></div>
+                {selectedValues.includes(item.value) ? (
+                  <div className={styles["selector-item-selected"]} />
                 ) : (
                   <></>
                 )}
               </ListItem>
-            );
-          })}
+            ),
+          )}
         </List>
       </div>
     </div>
   );
 }
+
 export function FullScreen(props: any) {
   const { children, right = 10, top = 10, ...rest } = props;
   const ref = useRef<HTMLDivElement>();
@@ -582,6 +615,91 @@ export function FullScreen(props: any) {
         />
       </div>
       {children}
+    </div>
+  );
+}
+
+// 添加一个简单的选择器组件用于 sidebar
+export function SimpleSelector<T>(props: {
+  items: Array<{
+    title: string;
+    value: T;
+  }>;
+  onClose?: () => void;
+  onSelection?: (selection: T[]) => void;
+}) {
+  return (
+    <div className={styles["selector"]} onClick={props.onClose}>
+      <div
+        className={clsx(styles["selector-content"], styles["simple"])}
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
+      >
+        <List>
+          {props.items.map((item, i) => (
+            <ListItem
+              className={styles["selector-item"]}
+              key={i}
+              title={item.title}
+              onClick={() => {
+                props.onSelection?.([item.value]);
+                props.onClose?.();
+              }}
+            />
+          ))}
+        </List>
+      </div>
+    </div>
+  );
+}
+
+// 添加一个支持多选的简单选择器组件
+export function SimpleMultipleSelector<T>(props: {
+  items: Array<{
+    title: string;
+    value: T;
+  }>;
+  defaultSelectedValue?: T[];
+  onClose?: () => void;
+  onSelection?: (selection: T[]) => void;
+  showSearch?: boolean;
+}) {
+  const [selectedValues, setSelectedValues] = useState<T[]>(
+    props.defaultSelectedValue ?? [],
+  );
+
+  return (
+    <div className={styles["selector"]} onClick={props.onClose}>
+      <div
+        className={clsx(styles["selector-content"], styles["simple"])}
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
+      >
+        <List>
+          {props.items.map((item, i) => (
+            <ListItem
+              className={styles["selector-item"]}
+              key={i}
+              title={item.title}
+              onClick={() => {
+                const newSelectedValues = selectedValues.includes(item.value)
+                  ? selectedValues.filter((v) => v !== item.value)
+                  : [...selectedValues, item.value];
+                setSelectedValues(newSelectedValues);
+                props.onSelection?.(newSelectedValues);
+              }}
+            >
+              {selectedValues.includes(item.value) ? (
+                <div className={styles["selector-item-selected"]} />
+              ) : (
+                <></>
+              )}
+            </ListItem>
+          ))}
+        </List>
+      </div>
     </div>
   );
 }
