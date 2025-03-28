@@ -4,7 +4,6 @@ import React, {
   useRef,
   useEffect,
   useMemo,
-  useCallback,
   Fragment,
   RefObject,
 } from "react";
@@ -29,9 +28,9 @@ import DeleteIcon from "../icons/clear.svg";
 import PinIcon from "../icons/pin.svg";
 import EditIcon from "../icons/rename.svg";
 import ConfirmIcon from "../icons/confirm.svg";
-import CloseIcon from "../icons/close.svg";
 import CancelIcon from "../icons/cancel.svg";
-import ImageIcon from "../icons/image.svg";
+import FileIcon from "../icons/file.svg";
+import AttachmentIcon from "../icons/attachment.svg";
 
 import LightIcon from "../icons/light.svg";
 import DarkIcon from "../icons/dark.svg";
@@ -46,6 +45,7 @@ import PluginIcon from "../icons/plugin.svg";
 import ShortcutkeyIcon from "../icons/shortcutkey.svg";
 import ReloadIcon from "../icons/reload.svg";
 import HeadphoneIcon from "../icons/headphone.svg";
+import McpToolIcon from "../icons/tool.svg";
 import {
   ChatMessage,
   SubmitKey,
@@ -123,6 +123,15 @@ import { isEmpty } from "lodash-es";
 import { getModelProvider } from "../utils/model";
 import { RealtimeChat } from "@/app/components/realtime-chat";
 import clsx from "clsx";
+import {
+  FileInfo,
+  getFileIconClass,
+  uploadAttachments,
+  readFileAsText,
+} from "../utils/file";
+import { getAvailableClientsCount, isMcpEnabled } from "../mcp/actions";
+
+import { ImageEditor } from "./image-editor";
 
 const localStorage = safeLocalStorage();
 
@@ -453,7 +462,7 @@ function useScrollToBottom(
 }
 
 export function ChatActions(props: {
-  uploadImage: () => void;
+  uploadAttachments: () => void;
   setAttachImages: (images: string[]) => void;
   setUploading: (uploading: boolean) => void;
   showPromptModal: () => void;
@@ -571,13 +580,11 @@ export function ChatActions(props: {
           />
         )}
 
-        {showUploadImage && (
-          <ChatAction
-            onClick={props.uploadImage}
-            text={Locale.Chat.InputActions.UploadImage}
-            icon={props.uploading ? <LoadingButtonIcon /> : <ImageIcon />}
-          />
-        )}
+        <ChatAction
+          onClick={props.uploadAttachments}
+          text={"上传附件"}
+          icon={props.uploading ? <LoadingButtonIcon /> : <AttachmentIcon />}
+        />
 
         {config.enableThemeChange && (
           <ChatAction
@@ -638,7 +645,9 @@ export function ChatActions(props: {
                   : ""
               }`,
               value: `${m.name}@${m?.provider?.providerName}`,
-              icon: <Avatar model={m.name} />,
+              icon: (
+                <Avatar model={m.name} provider={m?.provider?.providerName} />
+              ),
             }))}
             onClose={() => setShowModelSelector(false)}
             onSelection={(m) => {
@@ -749,8 +758,10 @@ export function ChatActions(props: {
             onClick={() => {
               if (currentModel === "gemini-2.0-flash-exp") {
                 setShowPluginSelector(true);
-              } else {
+              } else if (pluginStore.getAll().length === 0) {
                 navigate(Path.Plugins);
+              } else {
+                setShowPluginSelector(true);
               }
             }}
             text={Locale.Plugin.Name}
@@ -869,7 +880,7 @@ export function EditMessageModal(props: { onClose: () => void }) {
   );
 }
 
-export function DeleteImageButton(props: { deleteImage: () => void }) {
+export function DeleteImageButton(props: { deleteImage: (e?: any) => void }) {
   return (
     <div className={styles["delete-image"]} onClick={props.deleteImage}>
       <DeleteIcon />
@@ -984,6 +995,8 @@ function _Chat() {
   const navigate = useNavigate();
   const [attachImages, setAttachImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<FileInfo[]>([]);
 
   // prompt hints
   const promptStore = usePromptStore();
@@ -1036,6 +1049,47 @@ function _Chat() {
   // only search prompts when user input is short
   const SEARCH_TEXT_LIMIT = 30;
   const onInput = (text: string) => {
+    const MAX_TEXT_LENGTH = 3000; // 最大文本长度
+
+    // 修改输入文本处理逻辑
+    if (text.length > MAX_TEXT_LENGTH && userInput.length <= MAX_TEXT_LENGTH) {
+      // 截断过长的文本内容
+      const MAX_FILE_CONTENT_LENGTH = 100000; // 与上传文件相同的最大内容长度
+      const truncatedText =
+        text.length > MAX_FILE_CONTENT_LENGTH
+          ? text.substring(0, MAX_FILE_CONTENT_LENGTH) +
+            `\n\n[文件过大，已截断。原文件大小: ${text.length} 字符]`
+          : text;
+
+      // 将长文本转换为文件附件
+      const longTextFile: FileInfo = {
+        name: `输入文本_${new Date()
+          .toISOString()
+          .slice(0, 19)
+          .replace(/[T:]/g, "-")}.txt`,
+        type: "text/plain",
+        size: text.length,
+        content: truncatedText,
+        originalFile: new File([text], "输入文本.txt", { type: "text/plain" }),
+      };
+
+      // 添加到文件附件列表
+      setAttachedFiles([...attachedFiles, longTextFile]);
+
+      // 清空输入框
+      setUserInput("");
+
+      // 显示提示
+      showToast("文本过长，已自动转换为文件附件");
+
+      // 如果文本被截断，显示额外提示
+      if (text.length > MAX_FILE_CONTENT_LENGTH) {
+        showToast(`文件内容过大，已截断至 ${MAX_FILE_CONTENT_LENGTH} 字符`);
+      }
+
+      return;
+    }
+
     setUserInput(text);
     const n = text.trim().length;
 
@@ -1049,20 +1103,71 @@ function _Chat() {
   };
 
   const doSubmit = (userInput: string) => {
-    if (userInput.trim() === "" && isEmpty(attachImages)) return;
-    const matchCommand = chatCommands.match(userInput);
+    if (
+      userInput.trim() === "" &&
+      isEmpty(attachImages) &&
+      attachedFiles.length === 0
+    )
+      return;
+
+    // 检查是否有长文本需要转换为文件
+    let finalUserInput = userInput;
+    const MAX_TEXT_LENGTH = 3000; // 最大文本长度
+
+    if (userInput.length > MAX_TEXT_LENGTH) {
+      // 将长文本转换为文件附件
+      const longTextFile: FileInfo = {
+        name: "长文本.txt",
+        type: "text/plain",
+        size: userInput.length,
+        content: userInput,
+        originalFile: new File([userInput], "长文本.txt", {
+          type: "text/plain",
+        }),
+      };
+
+      // 添加到文件附件列表
+      setAttachedFiles([...attachedFiles, longTextFile]);
+
+      // 替换用户输入为提示信息
+      finalUserInput = "我发送了一个长文本文件，内容已自动转换为附件。";
+
+      // 显示提示
+      showToast("文本过长，已自动转换为文件附件");
+    }
+
+    // 如果有附加文件，将文件信息添加到用户输入
+    if (attachedFiles.length > 0) {
+      const fileInfosText = attachedFiles
+        .map(
+          (file) =>
+            `文件名: ${file.name}\n类型: ${file.type}\n大小: ${(
+              file.size / 1024
+            ).toFixed(2)} KB\n\n${file.content}`,
+        )
+        .join("\n\n---\n\n");
+
+      finalUserInput = finalUserInput
+        ? `${finalUserInput}\n\n${fileInfosText}`
+        : fileInfosText;
+    }
+
+    const matchCommand = chatCommands.match(finalUserInput);
     if (matchCommand.matched) {
       setUserInput("");
       setPromptHints([]);
       matchCommand.invoke();
       return;
     }
+
     setIsLoading(true);
     chatStore
-      .onUserInput(userInput, attachImages)
+      .onUserInput(finalUserInput, attachImages)
       .then(() => setIsLoading(false));
+
     setAttachImages([]);
-    chatStore.setLastInput(userInput);
+    setAttachedFiles([]); // 清除附加文件
+    chatStore.setLastInput(finalUserInput);
     setUserInput("");
     setPromptHints([]);
     if (!isMobileScreen) inputRef.current?.focus();
@@ -1213,7 +1318,10 @@ function _Chat() {
     const textContent = getMessageTextContent(userMessage);
     const images = getMessageImages(userMessage);
     chatStore.onUserInput(textContent, images).then(() => setIsLoading(false));
-    inputRef.current?.focus();
+    // 只在非移动设备上聚焦输入框
+    if (!isMobileScreen) {
+      inputRef.current?.focus();
+    }
   };
 
   const onPinMessage = (message: ChatMessage) => {
@@ -1452,84 +1560,144 @@ function _Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handlePaste = useCallback(
-    async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-      const currentModel = chatStore.currentSession().mask.modelConfig.model;
-      if (!isVisionModel(currentModel)) {
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (e.clipboardData && e.clipboardData.files.length > 0) {
+      // 处理粘贴的文件
+      e.preventDefault();
+
+      // 检查是否为图片
+      const imageFiles = Array.from(e.clipboardData.files).filter((file) =>
+        file.type.startsWith("image/"),
+      );
+
+      // 处理图片文件
+      if (imageFiles.length > 0) {
+        // 检查图片数量限制
+        if (attachImages.length >= 3) {
+          showToast("最多只能上传3张图片");
+          return;
+        }
+
+        setUploading(true);
+        try {
+          for (const file of imageFiles) {
+            if (attachImages.length < 3) {
+              const dataUrl = await uploadImageRemote(file);
+              setAttachImages([...attachImages, dataUrl]);
+            } else {
+              break; // 达到3张图片限制
+            }
+          }
+        } catch (error) {
+          console.error("上传图片失败:", error);
+          showToast("上传图片失败");
+        } finally {
+          setUploading(false);
+        }
         return;
       }
-      const items = (event.clipboardData || window.clipboardData).items;
-      for (const item of items) {
-        if (item.kind === "file" && item.type.startsWith("image/")) {
-          event.preventDefault();
-          const file = item.getAsFile();
-          if (file) {
-            const images: string[] = [];
-            images.push(...attachImages);
-            images.push(
-              ...(await new Promise<string[]>((res, rej) => {
-                setUploading(true);
-                const imagesData: string[] = [];
-                uploadImageRemote(file)
-                  .then((dataUrl) => {
-                    imagesData.push(dataUrl);
-                    setUploading(false);
-                    res(imagesData);
-                  })
-                  .catch((e) => {
-                    setUploading(false);
-                    rej(e);
-                  });
-              })),
-            );
-            const imagesLength = images.length;
 
-            if (imagesLength > 3) {
-              images.splice(3, imagesLength - 3);
+      // 处理其他类型文件
+      const textFiles = Array.from(e.clipboardData.files);
+      if (textFiles.length > 0) {
+        // 检查文件数量限制
+        if (attachedFiles.length >= 5) {
+          showToast("最多只能上传5个文件");
+          return;
+        }
+
+        setUploading(true);
+        try {
+          for (const file of textFiles) {
+            if (attachedFiles.length < 5) {
+              // 读取文件内容
+              const text = await readFileAsText(file);
+              const maxLength = 100000;
+              const truncatedText =
+                text.length > maxLength
+                  ? text.substring(0, maxLength) +
+                    `\n\n[文件过大，已截断。原文件大小: ${text.length} 字符]`
+                  : text;
+
+              // 添加到附件列表
+              setAttachedFiles([
+                ...attachedFiles,
+                {
+                  name: file.name || "粘贴的文件.txt",
+                  type: file.type || "text/plain",
+                  size: file.size,
+                  content: truncatedText,
+                  originalFile: file,
+                },
+              ]);
+            } else {
+              break; // 达到5个文件限制
             }
-            setAttachImages(images);
           }
+        } catch (error) {
+          console.error("读取文件失败:", error);
+          showToast("读取文件失败");
+        } finally {
+          setUploading(false);
         }
       }
-    },
-    [attachImages, chatStore],
-  );
+    } else {
+      // 处理粘贴的文本
+      const text = e.clipboardData.getData("text/plain");
+      if (text && text.length > 1000) {
+        // 如果文本超过1000字符
+        e.preventDefault();
 
-  async function uploadImage() {
+        // 检查文件数量限制
+        if (attachedFiles.length >= 5) {
+          showToast("最多只能上传5个文件");
+          return;
+        }
+
+        // 截断过长的文本内容
+        const maxLength = 100000;
+        const truncatedText =
+          text.length > maxLength
+            ? text.substring(0, maxLength) +
+              `\n\n[文件过大，已截断。原文件大小: ${text.length} 字符]`
+            : text;
+
+        // 将长文本转为文件附件
+        const file = new File([text], "粘贴的文本.txt", { type: "text/plain" });
+        setAttachedFiles([
+          ...attachedFiles,
+          {
+            name: "粘贴的文本.txt",
+            type: "text/plain",
+            size: text.length,
+            content: truncatedText,
+            originalFile: file,
+          },
+        ]);
+
+        showToast("已将长文本转为附件");
+      }
+    }
+  };
+
+  async function uploadImage(file: File) {
     const images: string[] = [];
     images.push(...attachImages);
 
     images.push(
       ...(await new Promise<string[]>((res, rej) => {
-        const fileInput = document.createElement("input");
-        fileInput.type = "file";
-        fileInput.accept =
-          "image/png, image/jpeg, image/webp, image/heic, image/heif";
-        fileInput.multiple = true;
-        fileInput.onchange = (event: any) => {
-          setUploading(true);
-          const files = event.target.files;
-          const imagesData: string[] = [];
-          for (let i = 0; i < files.length; i++) {
-            const file = event.target.files[i];
-            uploadImageRemote(file)
-              .then((dataUrl) => {
-                imagesData.push(dataUrl);
-                if (
-                  imagesData.length === 3 ||
-                  imagesData.length === files.length
-                ) {
-                  setUploading(false);
-                  res(imagesData);
-                }
-              })
-              .catch((e) => {
-                setUploading(false);
-                rej(e);
-              });
-          }
-        };
-        fileInput.click();
+        setUploading(true);
+        const imagesData: string[] = [];
+        uploadImageRemote(file)
+          .then((dataUrl) => {
+            imagesData.push(dataUrl);
+            setUploading(false);
+            res(imagesData);
+          })
+          .catch((e) => {
+            setUploading(false);
+            rej(e);
+          });
       })),
     );
 
@@ -1538,6 +1706,68 @@ function _Chat() {
       images.splice(3, imagesLength - 3);
     }
     setAttachImages(images);
+  }
+
+  // 修改上传附件的处理函数
+  async function handleUploadAttachments() {
+    // 从file.ts导入的新函数
+    uploadAttachments(
+      // 开始上传
+      () => {
+        setUploading(true);
+      },
+      // 上传成功
+      (fileInfos, imageUrls) => {
+        let messages = [];
+
+        // 处理文件
+        if (fileInfos.length > 0) {
+          // 合并新上传的文件和已有的文件，最多保留5个
+          const updatedFiles = [...attachedFiles, ...fileInfos];
+          let actualFileCount = fileInfos.length;
+
+          if (updatedFiles.length > 5) {
+            actualFileCount = Math.max(0, 5 - attachedFiles.length);
+            updatedFiles.splice(5, updatedFiles.length - 5);
+            messages.push(`最多只能上传5个文件，已保留前5个`);
+          } else if (actualFileCount > 0) {
+            messages.push(`已上传 ${actualFileCount} 个文件`);
+          }
+          setAttachedFiles(updatedFiles);
+        }
+
+        // 处理图片
+        if (imageUrls.length > 0) {
+          const images = [...attachImages];
+          let actualImageCount = imageUrls.length;
+
+          images.push(...imageUrls);
+
+          // 最多保留3张图片
+          if (images.length > 3) {
+            actualImageCount = Math.max(0, 3 - attachImages.length);
+            images.splice(3, images.length - 3);
+            messages.push(`最多只能上传3张图片，已保留前3张`);
+          } else if (actualImageCount > 0) {
+            messages.push(`已上传 ${actualImageCount} 张图片`);
+          }
+          setAttachImages(images);
+        }
+
+        // 显示合并后的消息
+        if (messages.length > 0) {
+          showToast(messages.join("，"));
+        }
+      },
+      // 上传失败
+      (error) => {
+        showToast("读取文件失败");
+      },
+      // 完成上传
+      () => {
+        setUploading(false);
+      },
+    );
   }
 
   // 快捷键 shortcut keys
@@ -1606,508 +1836,605 @@ function _Chat() {
 
   const [showChatSidePanel, setShowChatSidePanel] = useState(false);
 
+  // 添加触摸滑动相关的状态
+  const [touchStartX, setTouchStartX] = useState(0);
+  const [touchEndX, setTouchEndX] = useState(0);
+
+  // 处理触摸事件
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartX(e.touches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEndX(e.touches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!isMobileScreen) return;
+
+    const swipeDistance = touchEndX - touchStartX;
+    const minSwipeDistance = 100; // 最小滑动距离
+
+    // 向右滑动且距离足够
+    if (swipeDistance > minSwipeDistance) {
+      navigate(Path.Home);
+    }
+
+    // 重置触摸状态
+    setTouchStartX(0);
+    setTouchEndX(0);
+  };
+
+  // 添加删除单个文件函数
+  function deleteAttachedFile(index: number) {
+    setAttachedFiles(attachedFiles.filter((_, i) => i !== index));
+  }
+
+  const MCPAction = () => {
+    const [count, setCount] = useState<number>(0);
+    const [mcpEnabled, setMcpEnabled] = useState(false);
+
+    useEffect(() => {
+      const checkMcpStatus = async () => {
+        const enabled = await isMcpEnabled();
+        setMcpEnabled(enabled);
+        if (enabled) {
+          const count = await getAvailableClientsCount();
+          setCount(count);
+        }
+      };
+      checkMcpStatus();
+    }, []);
+
+    if (!mcpEnabled) return null;
+
+    return (
+      <ChatAction
+        onClick={() => navigate(Path.McpMarket)}
+        text={`MCP${count ? ` (${count})` : ""}`}
+        icon={<McpToolIcon />}
+      />
+    );
+  };
+
+  // 在 _Chat 组件内添加新状态
+  const [editingFile, setEditingFile] = useState<FileInfo | null>(null);
+  const [showFileEditModal, setShowFileEditModal] = useState(false);
+
+  // 在_Chat组件中添加状态
+  const [editingImage, setEditingImage] = useState<string | null>(null);
+
+  // 在_Chat组件中添加状态，记录当前编辑图片所属的消息ID
+  const [editingImageMessageId, setEditingImageMessageId] = useState<
+    string | null
+  >(null);
+
   return (
-    <>
-      <div className={styles.chat} key={session.id}>
-        <div className="window-header" data-tauri-drag-region>
-          {isMobileScreen && (
-            <div className="window-actions">
-              <div className={"window-action-button"}>
-                <IconButton
-                  icon={<ReturnIcon />}
-                  bordered
-                  title={Locale.Chat.Actions.ChatList}
-                  onClick={() => navigate(Path.Home)}
-                />
-              </div>
+    <div
+      className={styles.chat}
+      key={session.id}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      <div className="window-header" data-tauri-drag-region>
+        {isMobileScreen && (
+          <div className="window-actions">
+            <div className={"window-action-button"}>
+              <IconButton
+                icon={<ReturnIcon />}
+                bordered
+                title={Locale.Chat.Actions.ChatList}
+                onClick={() => navigate(Path.Home)}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className={clsx("window-header-title", styles["chat-body-title"])}>
+          <div
+            className={clsx(
+              "window-header-main-title",
+              styles["chat-body-main-title"],
+            )}
+            onClickCapture={() => setIsEditingMessage(true)}
+          >
+            {!session.topic ? DEFAULT_TOPIC : session.topic}
+          </div>
+        </div>
+        <div className="window-actions">
+          <div className="window-action-button">
+            <IconButton
+              icon={<ReloadIcon />}
+              bordered
+              title={Locale.Chat.Actions.RefreshTitle}
+              onClick={() => {
+                showToast(Locale.Chat.Actions.RefreshToast);
+                chatStore.summarizeSession(true, session);
+              }}
+            />
+          </div>
+          {!isMobileScreen && (
+            <div className="window-action-button">
+              <IconButton
+                icon={<RenameIcon />}
+                bordered
+                title={Locale.Chat.EditMessage.Title}
+                aria={Locale.Chat.EditMessage.Title}
+                onClick={() => setIsEditingMessage(true)}
+              />
             </div>
           )}
-
-          <div
-            className={clsx("window-header-title", styles["chat-body-title"])}
-          >
-            <div
-              className={clsx(
-                "window-header-main-title",
-                styles["chat-body-main-title"],
-              )}
-              onClickCapture={() => setIsEditingMessage(true)}
-            >
-              {!session.topic ? DEFAULT_TOPIC : session.topic}
-            </div>
-          </div>
-          <div className="window-actions">
-            <div className="window-action-button">
-              <IconButton
-                icon={<ReloadIcon />}
-                bordered
-                title={Locale.Chat.Actions.RefreshTitle}
-                onClick={() => {
-                  showToast(Locale.Chat.Actions.RefreshToast);
-                  chatStore.summarizeSession(true, session);
-                }}
-              />
-            </div>
-            {!isMobileScreen && (
-              <div className="window-action-button">
-                <IconButton
-                  icon={<RenameIcon />}
-                  bordered
-                  title={Locale.Chat.EditMessage.Title}
-                  aria={Locale.Chat.EditMessage.Title}
-                  onClick={() => setIsEditingMessage(true)}
-                />
-              </div>
-            )}
-            <div className="window-action-button">
-              <IconButton
-                icon={<ExportIcon />}
-                bordered
-                title={Locale.Chat.Actions.Export}
-                onClick={() => {
-                  setShowExport(true);
-                }}
-              />
-            </div>
-            {showMaxIcon && (
-              <div className="window-action-button">
-                <IconButton
-                  icon={config.tightBorder ? <MinIcon /> : <MaxIcon />}
-                  bordered
-                  title={Locale.Chat.Actions.FullScreen}
-                  aria={Locale.Chat.Actions.FullScreen}
-                  onClick={() => {
-                    config.update(
-                      (config) => (config.tightBorder = !config.tightBorder),
-                    );
-                  }}
-                />
-              </div>
-            )}
-          </div>
-
-          <PromptToast
-            showToast={!hitBottom}
-            showModal={showPromptModal}
-            setShowModal={setShowPromptModal}
-          />
-        </div>
-        <div className={styles["chat-main"]}>
-          <div className={styles["chat-body-container"]}>
-            <div
-              className={styles["chat-body"]}
-              ref={scrollRef}
-              onScroll={(e) => onChatBodyScroll(e.currentTarget)}
-              onMouseDown={() => inputRef.current?.blur()}
-              onTouchStart={() => {
-                inputRef.current?.blur();
-                setAutoScroll(false);
+          <div className="window-action-button">
+            <IconButton
+              icon={<ExportIcon />}
+              bordered
+              title={Locale.Chat.Actions.Export}
+              onClick={() => {
+                setShowExport(true);
               }}
-            >
-              {messages.map((message, i) => {
-                const isUser = message.role === "user";
-                const isContext = i < context.length;
-                const showActions =
-                  i > 0 &&
-                  !(message.preview || message.content.length === 0) &&
-                  !isContext;
-                const showTyping = message.preview || message.streaming;
-
-                const shouldShowClearContextDivider =
-                  i === clearContextIndex - 1;
-
-                return (
-                  <Fragment key={message.id}>
-                    <div
-                      className={
-                        isUser
-                          ? styles["chat-message-user"]
-                          : styles["chat-message"]
-                      }
-                    >
-                      <div className={styles["chat-message-container"]}>
-                        <div className={styles["chat-message-header"]}>
-                          <div className={styles["chat-message-avatar"]}>
-                            <div className={styles["chat-message-edit"]}>
-                              <IconButton
-                                icon={<EditIcon />}
-                                aria={Locale.Chat.Actions.Edit}
-                                onClick={async () => {
-                                  const newMessage = await showPrompt(
-                                    Locale.Chat.Actions.Edit,
-                                    getMessageTextContent(message),
-                                    10,
-                                  );
-                                  let newContent: string | MultimodalContent[] =
-                                    newMessage;
-                                  const images = getMessageImages(message);
-                                  if (images.length > 0) {
-                                    newContent = [
-                                      { type: "text", text: newMessage },
-                                    ];
-                                    for (let i = 0; i < images.length; i++) {
-                                      newContent.push({
-                                        type: "image_url",
-                                        image_url: {
-                                          url: images[i],
-                                        },
-                                      });
-                                    }
-                                  }
-                                  chatStore.updateTargetSession(
-                                    session,
-                                    (session) => {
-                                      const m = session.mask.context
-                                        .concat(session.messages)
-                                        .find((m) => m.id === message.id);
-                                      if (m) {
-                                        m.content = newContent;
-                                      }
-                                    },
-                                  );
-                                }}
-                              ></IconButton>
-                            </div>
-                            {isUser ? (
-                              <div className={styles["chat-message-avatar"]}>
-                                <div className={styles["chat-message-edit"]}>
-                                  <IconButton
-                                    icon={<EditIcon />}
-                                    aria={Locale.Chat.Actions.Edit}
-                                    onClick={async () => {
-                                      const newMessage = await showPrompt(
-                                        Locale.Chat.Actions.Edit,
-                                        getMessageTextContent(message),
-                                        10,
-                                      );
-                                      let newContent:
-                                        | string
-                                        | MultimodalContent[] = newMessage;
-                                      const images = getMessageImages(message);
-                                      if (images.length > 0) {
-                                        newContent = [
-                                          { type: "text", text: newMessage },
-                                        ];
-                                        for (
-                                          let i = 0;
-                                          i < images.length;
-                                          i++
-                                        ) {
-                                          newContent.push({
-                                            type: "image_url",
-                                            image_url: {
-                                              url: images[i],
-                                            },
-                                          });
-                                        }
-                                      }
-                                      chatStore.updateTargetSession(
-                                        session,
-                                        (session) => {
-                                          const m = session.mask.context
-                                            .concat(session.messages)
-                                            .find((m) => m.id === message.id);
-                                          if (m) {
-                                            m.content = newContent;
-                                          }
-                                        },
-                                      );
-                                    }}
-                                  ></IconButton>
-                                </div>
-                                <div className={styles["empty-avatar"]}></div>
-                              </div>
-                            ) : (
-                              <>
-                                {["system"].includes(message.role) ? (
-                                  <Avatar avatar="2699-fe0f" />
-                                ) : (
-                                  <MaskAvatar
-                                    avatar={session.mask.avatar}
-                                    model={
-                                      message.model ||
-                                      session.mask.modelConfig.model
-                                    }
-                                  />
-                                )}
-                              </>
-                            )}
-                          </div>
-                          {!isUser && (
-                            <div className={styles["chat-model-name"]}>
-                              {message.model}
-                            </div>
-                          )}
-
-                          {showActions && (
-                            <div className={styles["chat-message-actions"]}>
-                              <div className={styles["chat-input-actions"]}>
-                                {message.streaming ? (
-                                  <ChatAction
-                                    text={Locale.Chat.Actions.Stop}
-                                    icon={<StopIcon />}
-                                    onClick={() => onUserStop(message.id ?? i)}
-                                  />
-                                ) : (
-                                  <>
-                                    <ChatAction
-                                      text={Locale.Chat.Actions.Retry}
-                                      icon={<ResetIcon />}
-                                      onClick={() => onResend(message)}
-                                    />
-
-                                    <ChatAction
-                                      text={Locale.Chat.Actions.Delete}
-                                      icon={<DeleteIcon />}
-                                      onClick={() => onDelete(message.id ?? i)}
-                                    />
-
-                                    <ChatAction
-                                      text={Locale.Chat.Actions.Pin}
-                                      icon={<PinIcon />}
-                                      onClick={() => onPinMessage(message)}
-                                    />
-                                    <ChatAction
-                                      text={Locale.Chat.Actions.Copy}
-                                      icon={<CopyIcon />}
-                                      onClick={() =>
-                                        copyToClipboard(
-                                          getMessageTextContent(message),
-                                        )
-                                      }
-                                    />
-                                    {config.ttsConfig.enable && (
-                                      <ChatAction
-                                        text={
-                                          speechStatus
-                                            ? Locale.Chat.Actions.StopSpeech
-                                            : Locale.Chat.Actions.Speech
-                                        }
-                                        icon={
-                                          speechStatus ? (
-                                            <SpeakStopIcon />
-                                          ) : (
-                                            <SpeakIcon />
-                                          )
-                                        }
-                                        onClick={() =>
-                                          openaiSpeech(
-                                            getMessageTextContent(message),
-                                          )
-                                        }
-                                      />
-                                    )}
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        {message?.tools?.length == 0 && showTyping && (
-                          <div className={styles["chat-message-status"]}>
-                            {Locale.Chat.Typing}
-                          </div>
-                        )}
-                        {/*@ts-ignore*/}
-                        {message?.tools?.length > 0 && (
-                          <div className={styles["chat-message-tools"]}>
-                            {message?.tools?.map((tool) => (
-                              <div
-                                key={tool.id}
-                                title={tool?.errorMsg}
-                                className={styles["chat-message-tool"]}
-                              >
-                                {tool.isError === false ? (
-                                  <ConfirmIcon />
-                                ) : tool.isError === true ? (
-                                  <CloseIcon />
-                                ) : (
-                                  <LoadingButtonIcon />
-                                )}
-                                <span>{tool?.function?.name}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        <div className={styles["chat-message-item"]}>
-                          <Markdown
-                            key={message.streaming ? "loading" : "done"}
-                            content={getMessageTextContent(message)}
-                            loading={
-                              (message.preview || message.streaming) &&
-                              message.content.length === 0 &&
-                              !isUser
-                            }
-                            //   onContextMenu={(e) => onRightClick(e, message)} // hard to use
-                            onDoubleClickCapture={() => {
-                              if (!isMobileScreen) return;
-                              setUserInput(getMessageTextContent(message));
-                            }}
-                            fontSize={fontSize}
-                            fontFamily={fontFamily}
-                            parentRef={scrollRef}
-                            defaultShow={i >= messages.length - 6}
-                          />
-                          {getMessageImages(message).length == 1 && (
-                            <img
-                              className={styles["chat-message-item-image"]}
-                              src={getMessageImages(message)[0]}
-                              alt=""
-                            />
-                          )}
-                          {getMessageImages(message).length > 1 && (
-                            <div
-                              className={styles["chat-message-item-images"]}
-                              style={
-                                {
-                                  "--image-count":
-                                    getMessageImages(message).length,
-                                } as React.CSSProperties
-                              }
-                            >
-                              {getMessageImages(message).map((image, index) => {
-                                return (
-                                  <img
-                                    className={
-                                      styles["chat-message-item-image-multi"]
-                                    }
-                                    key={index}
-                                    src={image}
-                                    alt=""
-                                  />
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                        {message?.audio_url && (
-                          <div className={styles["chat-message-audio"]}>
-                            <audio src={message.audio_url} controls />
-                          </div>
-                        )}
-
-                        <div className={styles["chat-message-action-date"]}>
-                          {isContext
-                            ? Locale.Chat.IsContext
-                            : message.role === "system"
-                            ? message.date.toLocaleString()
-                            : ""}
-                        </div>
-                      </div>
-                    </div>
-                    {shouldShowClearContextDivider && <ClearContextDivider />}
-                  </Fragment>
-                );
-              })}
-            </div>
-            <div className={styles["chat-input-panel"]}>
-              <PromptHints
-                prompts={promptHints}
-                onPromptSelect={onPromptSelect}
-              />
-
-              <ChatActions
-                uploadImage={uploadImage}
-                setAttachImages={setAttachImages}
-                setUploading={setUploading}
-                showPromptModal={() => setShowPromptModal(true)}
-                scrollToBottom={scrollToBottom}
-                hitBottom={hitBottom}
-                uploading={uploading}
-                showPromptHints={() => {
-                  // Click again to close
-                  if (promptHints.length > 0) {
-                    setPromptHints([]);
-                    return;
-                  }
-
-                  inputRef.current?.focus();
-                  setUserInput("/");
-                  onSearch("");
+            />
+          </div>
+          {showMaxIcon && (
+            <div className="window-action-button">
+              <IconButton
+                icon={config.tightBorder ? <MinIcon /> : <MaxIcon />}
+                bordered
+                title={Locale.Chat.Actions.FullScreen}
+                aria={Locale.Chat.Actions.FullScreen}
+                onClick={() => {
+                  config.update(
+                    (config) => (config.tightBorder = !config.tightBorder),
+                  );
                 }}
-                setShowShortcutKeyModal={setShowShortcutKeyModal}
-                setUserInput={setUserInput}
-                setShowChatSidePanel={setShowChatSidePanel}
               />
-              <label
-                className={clsx(styles["chat-input-panel-inner"], {
-                  [styles["chat-input-panel-inner-attach"]]:
-                    attachImages.length !== 0,
-                })}
-                htmlFor="chat-input"
-              >
-                <textarea
-                  id="chat-input"
-                  ref={inputRef}
-                  className={styles["chat-input"]}
-                  placeholder={
-                    isMobileScreen
-                      ? Locale.Chat.MobileInput
-                      : Locale.Chat.Input(submitKey)
-                  }
-                  onInput={(e) => onInput(e.currentTarget.value)}
-                  value={userInput}
-                  onKeyDown={onInputKeyDown}
-                  onFocus={scrollToBottom}
-                  onClick={scrollToBottom}
-                  onPaste={handlePaste}
-                  rows={inputRows}
-                  autoFocus={autoFocus}
-                  style={{
-                    fontSize: config.fontSize,
-                    fontFamily: config.fontFamily,
-                  }}
-                />
-                {attachImages.length != 0 && (
-                  <div className={styles["attach-images"]}>
-                    {attachImages.map((image, index) => {
-                      return (
-                        <div
-                          key={index}
-                          className={styles["attach-image"]}
-                          style={{ backgroundImage: `url("${image}")` }}
-                        >
-                          <div className={styles["attach-image-mask"]}>
-                            <DeleteImageButton
-                              deleteImage={() => {
-                                setAttachImages(
-                                  attachImages.filter((_, i) => i !== index),
+            </div>
+          )}
+        </div>
+
+        <PromptToast
+          showToast={!hitBottom}
+          showModal={showPromptModal}
+          setShowModal={setShowPromptModal}
+        />
+      </div>
+      <div className={styles["chat-main"]}>
+        <div className={styles["chat-body-container"]}>
+          <div
+            className={styles["chat-body"]}
+            ref={scrollRef}
+            onScroll={(e) => onChatBodyScroll(e.currentTarget)}
+            onMouseDown={() => inputRef.current?.blur()}
+            onTouchStart={() => {
+              inputRef.current?.blur();
+              setAutoScroll(false);
+            }}
+          >
+            {messages.map((message, i) => {
+              const isUser = message.role === "user";
+              const isContext = i < context.length;
+              const showActions =
+                i > 0 &&
+                !message.streaming &&
+                !message.preview &&
+                message.content.length > 0 &&
+                !isContext;
+              const showTyping = message.preview || message.streaming;
+
+              const shouldShowClearContextDivider = i === clearContextIndex - 1;
+
+              return (
+                <Fragment key={message.id}>
+                  <div
+                    className={
+                      isUser
+                        ? styles["chat-message-user"]
+                        : styles["chat-message"]
+                    }
+                  >
+                    <div className={styles["chat-message-container"]}>
+                      <div className={styles["chat-message-header"]}>
+                        <div className={styles["chat-message-avatar"]}>
+                          <div className={styles["chat-message-edit"]}>
+                            <IconButton
+                              icon={<EditIcon />}
+                              aria={Locale.Chat.Actions.Edit}
+                              onClick={async () => {
+                                const newMessage = await showPrompt(
+                                  Locale.Chat.Actions.Edit,
+                                  getMessageTextContent(message),
+                                  10,
+                                );
+                                let newContent: string | MultimodalContent[] =
+                                  newMessage;
+                                const images = getMessageImages(message);
+                                if (images.length > 0) {
+                                  newContent = [
+                                    { type: "text", text: newMessage },
+                                  ];
+                                  for (let i = 0; i < images.length; i++) {
+                                    newContent.push({
+                                      type: "image_url",
+                                      image_url: {
+                                        url: images[i],
+                                      },
+                                    });
+                                  }
+                                }
+                                chatStore.updateTargetSession(
+                                  session,
+                                  (session) => {
+                                    const m = session.mask.context
+                                      .concat(session.messages)
+                                      .find((m) => m.id === message.id);
+                                    if (m) {
+                                      m.content = newContent;
+                                    }
+                                  },
                                 );
                               }}
-                            />
+                            ></IconButton>
+                          </div>
+                          {isUser ? (
+                            <div className={styles["chat-message-avatar"]}>
+                              <div className={styles["chat-message-edit"]}>
+                                <IconButton
+                                  icon={<EditIcon />}
+                                  aria={Locale.Chat.Actions.Edit}
+                                  onClick={async () => {
+                                    const newMessage = await showPrompt(
+                                      Locale.Chat.Actions.Edit,
+                                      getMessageTextContent(message),
+                                      10,
+                                    );
+                                    let newContent:
+                                      | string
+                                      | MultimodalContent[] = newMessage;
+                                    const images = getMessageImages(message);
+                                    if (images.length > 0) {
+                                      newContent = [
+                                        { type: "text", text: newMessage },
+                                      ];
+                                      for (let i = 0; i < images.length; i++) {
+                                        newContent.push({
+                                          type: "image_url",
+                                          image_url: {
+                                            url: images[i],
+                                          },
+                                        });
+                                      }
+                                    }
+                                    chatStore.updateTargetSession(
+                                      session,
+                                      (session) => {
+                                        const m = session.mask.context
+                                          .concat(session.messages)
+                                          .find((m) => m.id === message.id);
+                                        if (m) {
+                                          m.content = newContent;
+                                        }
+                                      },
+                                    );
+                                  }}
+                                ></IconButton>
+                              </div>
+                              <div className={styles["empty-avatar"]}></div>
+                            </div>
+                          ) : (
+                            <>
+                              {["system"].includes(message.role) ? (
+                                <Avatar avatar="2699-fe0f" />
+                              ) : (
+                                <MaskAvatar
+                                  avatar={session.mask.avatar}
+                                  model={
+                                    message.model ||
+                                    session.mask.modelConfig.model
+                                  }
+                                />
+                              )}
+                            </>
+                          )}
+                        </div>
+                        {!isUser && (
+                          <div className={styles["chat-model-name"]}>
+                            {message.model}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className={styles["chat-message-item"]}>
+                        <Markdown
+                          key={message.streaming ? "loading" : "done"}
+                          content={getMessageTextContent(message)}
+                          loading={
+                            (message.preview || message.streaming) &&
+                            message.content.length === 0 &&
+                            !isUser
+                          }
+                          fontSize={fontSize}
+                          fontFamily={fontFamily}
+                          parentRef={scrollRef}
+                          defaultShow={i >= messages.length - 6}
+                          isUser={isUser}
+                          messageId={message.id}
+                        />
+                        {getMessageImages(message).length == 1 && (
+                          <img
+                            className={styles["chat-message-item-image"]}
+                            src={getMessageImages(message)[0]}
+                            alt=""
+                            onClick={() => {
+                              setEditingImage(getMessageImages(message)[0]);
+                              setEditingImageMessageId(message.id); // 保存图片所属的消息ID
+                            }}
+                          />
+                        )}
+                        {getMessageImages(message).length > 1 && (
+                          <div
+                            className={styles["chat-message-item-images"]}
+                            style={
+                              {
+                                "--image-count":
+                                  getMessageImages(message).length,
+                              } as React.CSSProperties
+                            }
+                          >
+                            {getMessageImages(message).map((image, index) => {
+                              return (
+                                <img
+                                  className={
+                                    styles["chat-message-item-image-multi"]
+                                  }
+                                  key={index}
+                                  src={image}
+                                  alt=""
+                                  onClick={() => {
+                                    setEditingImage(image);
+                                    setEditingImageMessageId(message.id); // 保存图片所属的消息ID
+                                  }}
+                                />
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {showActions && (
+                        <div
+                          className={styles["chat-message-actions"]}
+                          style={{ marginTop: "8px" }}
+                        >
+                          <div className={styles["chat-input-actions"]}>
+                            <>
+                              <ChatAction
+                                text={Locale.Chat.Actions.Retry}
+                                icon={<ResetIcon />}
+                                onClick={() => onResend(message)}
+                              />
+                              <ChatAction
+                                text={Locale.Chat.Actions.Delete}
+                                icon={<DeleteIcon />}
+                                onClick={() => onDelete(message.id ?? i)}
+                              />
+                              <ChatAction
+                                text={Locale.Chat.Actions.Pin}
+                                icon={<PinIcon />}
+                                onClick={() => onPinMessage(message)}
+                              />
+                              <ChatAction
+                                text={Locale.Chat.Actions.Copy}
+                                icon={<CopyIcon />}
+                                onClick={() =>
+                                  copyToClipboard(
+                                    getMessageTextContent(message),
+                                  )
+                                }
+                              />
+                              {config.ttsConfig.enable && (
+                                <ChatAction
+                                  text={
+                                    speechStatus
+                                      ? Locale.Chat.Actions.StopSpeech
+                                      : Locale.Chat.Actions.Speech
+                                  }
+                                  icon={
+                                    speechStatus ? (
+                                      <SpeakStopIcon />
+                                    ) : (
+                                      <SpeakIcon />
+                                    )
+                                  }
+                                  onClick={() =>
+                                    openaiSpeech(getMessageTextContent(message))
+                                  }
+                                />
+                              )}
+                            </>
                           </div>
                         </div>
-                      );
-                    })}
+                      )}
+                    </div>
                   </div>
-                )}
-                <IconButton
-                  icon={<SendWhiteIcon />}
-                  text={isMobileScreen ? undefined : Locale.Chat.Send}
-                  className={styles["chat-input-send"]}
-                  type="primary"
-                  onClick={() => doSubmit(userInput)}
-                />
-              </label>
-            </div>
-          </div>
-          <div
-            className={clsx(styles["chat-side-panel"], {
-              [styles["mobile"]]: isMobileScreen,
-              [styles["chat-side-panel-show"]]: showChatSidePanel,
+                  {shouldShowClearContextDivider && <ClearContextDivider />}
+                </Fragment>
+              );
             })}
-          >
-            {showChatSidePanel && (
-              <RealtimeChat
-                onClose={() => {
-                  setShowChatSidePanel(false);
-                }}
-                onStartVoice={async () => {
-                  console.log("start voice");
+          </div>
+          <div className={styles["chat-input-panel"]}>
+            <PromptHints
+              prompts={promptHints}
+              onPromptSelect={onPromptSelect}
+            />
+
+            <ChatActions
+              uploadAttachments={handleUploadAttachments}
+              setAttachImages={setAttachImages}
+              setUploading={setUploading}
+              showPromptModal={() => setShowPromptModal(true)}
+              scrollToBottom={scrollToBottom}
+              hitBottom={hitBottom}
+              uploading={uploading}
+              showPromptHints={() => {
+                // Click again to close
+                if (promptHints.length > 0) {
+                  setPromptHints([]);
+                  return;
+                }
+
+                inputRef.current?.focus();
+                setUserInput("/");
+                onSearch("");
+              }}
+              setShowShortcutKeyModal={setShowShortcutKeyModal}
+              setUserInput={setUserInput}
+              setShowChatSidePanel={setShowChatSidePanel}
+            />
+            <label
+              className={clsx(styles["chat-input-panel-inner"], {
+                [styles["chat-input-panel-inner-attach"]]:
+                  attachImages.length !== 0 || attachedFiles.length !== 0,
+              })}
+              htmlFor="chat-input"
+            >
+              <textarea
+                id="chat-input"
+                ref={inputRef}
+                className={styles["chat-input"]}
+                placeholder={
+                  isMobileScreen
+                    ? Locale.Chat.MobileInput
+                    : Locale.Chat.Input(submitKey)
+                }
+                onInput={(e) => onInput(e.currentTarget.value)}
+                value={userInput}
+                onKeyDown={onInputKeyDown}
+                onFocus={scrollToBottom}
+                onClick={scrollToBottom}
+                onPaste={handlePaste}
+                rows={inputRows}
+                autoFocus={autoFocus}
+                style={{
+                  fontSize: config.fontSize,
+                  fontFamily: config.fontFamily,
                 }}
               />
-            )}
+
+              {/* 附件容器（包含图片和文件） */}
+              {(attachImages.length > 0 || attachedFiles.length > 0) && (
+                <div className={styles["attachments-container"]}>
+                  {/* 图片附件 */}
+                  {attachImages.map((image, index) => (
+                    <div
+                      key={`img-${index}`}
+                      className={styles["attach-image"]}
+                      style={{ backgroundImage: `url("${image}")` }}
+                      onClick={() => setEditingImage(image)}
+                    >
+                      <div className={styles["attach-image-mask"]}>
+                        <DeleteImageButton
+                          deleteImage={(e) => {
+                            e.stopPropagation(); // 防止触发图片点击事件
+                            setAttachImages(
+                              attachImages.filter((_, i) => i !== index),
+                            );
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* 文件附件 */}
+                  {attachedFiles.map((file, index) => (
+                    <div
+                      key={`file-${index}`}
+                      className={styles["attach-file"]}
+                      onClick={async () => {
+                        // 使用与消息编辑相同的showPrompt函数
+                        const newContent = await showPrompt(
+                          `编辑文件：${file.name}`,
+                          file.content,
+                          20, // 更多行数以便于编辑文件内容
+                        );
+
+                        if (newContent) {
+                          // 更新文件内容
+                          const updatedFiles = attachedFiles.map((f, i) => {
+                            if (i === index) {
+                              // 更新文件大小
+                              const newSize = new Blob([newContent]).size;
+                              return {
+                                ...f,
+                                content: newContent,
+                                size: newSize,
+                                originalFile: new File([newContent], f.name, {
+                                  type: f.type,
+                                }),
+                              };
+                            }
+                            return f;
+                          });
+                          setAttachedFiles(updatedFiles);
+                        }
+                      }}
+                    >
+                      <div className={styles["attach-file-card"]}>
+                        <div
+                          className={clsx(
+                            styles["attach-file-icon"],
+                            getFileIconClass(file.type),
+                          )}
+                        >
+                          <FileIcon />
+                        </div>
+                        <div className={styles["attach-file-info"]}>
+                          <div className={styles["attach-file-name"]}>
+                            {file.name}
+                          </div>
+                          <div className={styles["attach-file-size"]}>
+                            {(file.size / 1024).toFixed(2)} KB
+                          </div>
+                        </div>
+                      </div>
+                      <div className={styles["attach-image-mask"]}>
+                        <DeleteImageButton
+                          deleteImage={(e) => {
+                            e.stopPropagation(); // 防止触发文件点击事件
+                            deleteAttachedFile(index);
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <IconButton
+                icon={<SendWhiteIcon />}
+                text={isMobileScreen ? undefined : Locale.Chat.Send}
+                className={styles["chat-input-send"]}
+                type="primary"
+                onClick={() => doSubmit(userInput)}
+              />
+            </label>
           </div>
+        </div>
+        <div
+          className={clsx(styles["chat-side-panel"], {
+            [styles["mobile"]]: isMobileScreen,
+            [styles["chat-side-panel-show"]]: showChatSidePanel,
+          })}
+        >
+          {showChatSidePanel && (
+            <RealtimeChat
+              onClose={() => {
+                setShowChatSidePanel(false);
+              }}
+              onStartVoice={async () => {
+                console.log("start voice");
+              }}
+            />
+          )}
         </div>
       </div>
       {showExport && (
@@ -2125,7 +2452,138 @@ function _Chat() {
       {showShortcutKeyModal && (
         <ShortcutKeyModal onClose={() => setShowShortcutKeyModal(false)} />
       )}
-    </>
+
+      {showFileEditModal && editingFile && (
+        <div className="modal-mask">
+          <Modal
+            title={`编辑文件内容: ${editingFile.name}`}
+            onClose={() => setShowFileEditModal(false)}
+            actions={[
+              <IconButton
+                text={Locale.UI.Cancel}
+                icon={<CancelIcon />}
+                key="cancel"
+                onClick={() => {
+                  setShowFileEditModal(false);
+                }}
+              />,
+              <IconButton
+                type="primary"
+                text={Locale.UI.Confirm}
+                icon={<ConfirmIcon />}
+                key="ok"
+                onClick={() => {
+                  // 保存编辑后的内容
+                  const updatedFiles = attachedFiles.map((file) => {
+                    if (file === editingFile) {
+                      // 更新文件大小
+                      const newSize = new Blob([editingFile.content]).size;
+                      return {
+                        ...file,
+                        size: newSize,
+                        originalFile: new File(
+                          [editingFile.content],
+                          file.name,
+                          { type: file.type },
+                        ),
+                      };
+                    }
+                    return file;
+                  });
+                  setAttachedFiles(updatedFiles);
+                  setShowFileEditModal(false);
+                }}
+              />,
+            ]}
+          >
+            <div style={{ maxHeight: "70vh", overflowY: "auto" }}>
+              <textarea
+                style={{
+                  width: "100%",
+                  height: "300px",
+                  padding: "8px",
+                  fontFamily: "monospace",
+                  fontSize: "14px",
+                  border: "1px solid #ccc",
+                  borderRadius: "4px",
+                  resize: "vertical",
+                }}
+                value={editingFile.content}
+                onChange={(e) => {
+                  // 更新正在编辑的文件内容
+                  setEditingFile({
+                    ...editingFile,
+                    content: e.target.value,
+                  });
+                }}
+              />
+            </div>
+          </Modal>
+        </div>
+      )}
+
+      {editingImage && (
+        <ImageEditor
+          imageUrl={editingImage}
+          onClose={() => {
+            setEditingImage(null);
+            setEditingImageMessageId(null); // 清除消息ID
+          }}
+          onSave={(editedImage) => {
+            // 检查是否为附件图片
+            if (attachImages.includes(editingImage)) {
+              setAttachImages(
+                attachImages.map((img) =>
+                  img === editingImage ? editedImage : img,
+                ),
+              );
+            }
+            // 检查是否为消息中的图片
+            else if (editingImageMessageId) {
+              // 更新消息中的图片
+              chatStore.updateTargetSession(session, (session) => {
+                // 查找所有消息(包括上下文消息)
+                const messages = session.mask.context.concat(session.messages);
+                const messageToUpdate = messages.find(
+                  (m) => m.id === editingImageMessageId,
+                );
+
+                if (messageToUpdate) {
+                  // 处理两种可能的消息内容格式
+                  if (typeof messageToUpdate.content === "string") {
+                    // 文本消息内容 - 不应该有图片，但为防止错误进行处理
+                    messageToUpdate.content = messageToUpdate.content;
+                  } else if (Array.isArray(messageToUpdate.content)) {
+                    // 多模态内容 - 找到并替换图片URL
+                    messageToUpdate.content = messageToUpdate.content.map(
+                      (item) => {
+                        if (
+                          item.type === "image_url" &&
+                          item.image_url &&
+                          item.image_url.url === editingImage
+                        ) {
+                          return {
+                            ...item,
+                            image_url: {
+                              ...item.image_url,
+                              url: editedImage,
+                            },
+                          };
+                        }
+                        return item;
+                      },
+                    );
+                  }
+                }
+              });
+            }
+
+            setEditingImage(null);
+            setEditingImageMessageId(null); // 清除消息ID
+          }}
+        />
+      )}
+    </div>
   );
 }
 

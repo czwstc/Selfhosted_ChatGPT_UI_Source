@@ -12,8 +12,10 @@ const DANGER_CONFIG = {
   disableGPT4: serverConfig.disableGPT4,
   hideBalanceQuery: serverConfig.hideBalanceQuery,
   disableFastLink: serverConfig.disableFastLink,
-  customModels: serverConfig.customModels,
+  customModels: serverConfig.customModels || process.env.CUSTOM_MODELS || "",
   defaultModel: serverConfig.defaultModel,
+  baseUrl: process.env.BASE_URL || "https://api.openai.com",
+  apiKey: process.env.OPENAI_API_KEY ? "已设置" : "",
 };
 
 declare global {

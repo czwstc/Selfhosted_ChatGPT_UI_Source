@@ -1,0 +1,285 @@
+.modelSelector {
+  &Header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+
+    &Title {
+      font-size: 14px;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+
+    &Controls {
+      display: flex;
+      flex: 1;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    &SearchArea {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex: 1;
+    }
+
+    &SearchInput {
+      width: 100%;
+      padding: 4px 10px;
+      border: var(--border-in-light);
+      border-radius: 10px;
+      background: var(--white);
+      box-shadow: var(--input-shadow);
+      font-size: 14px;
+      line-height: 1.2;
+      height: 32px;
+      color: var(--black);
+    }
+
+    &CategorySelect {
+      padding: 4px 8px;
+      border: var(--border-in-light);
+      border-radius: 10px;
+      background: var(--white);
+      box-shadow: var(--input-shadow);
+      font-size: 14px;
+      height: 32px;
+      line-height: 1.2;
+      color: var(--black);
+      width: auto;
+      appearance: auto;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    &Buttons {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+  }
+
+  &Loading {
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  &ModelName {
+    font-size: 14px;
+    font-weight: bold;
+    color: var(--text-color);
+    padding: 2px 4px;
+    border-radius: 8px;
+    display: inline-block;
+  }
+
+  &EditForm {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    padding: 0 20px;
+
+    &Row {
+      display: flex;
+      align-items: center;
+      max-width: 90%;
+      margin: 0 auto;
+
+      &Label {
+        width: 80px;
+        white-space: nowrap;
+        margin-right: 8px;
+      }
+
+      &Input {
+        padding: 4px 8px;
+        border: var(--border-in-light);
+        border-radius: 8px;
+        flex: 1;
+      }
+    }
+
+    &Buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 8px;
+      max-width: 90%;
+      margin: 8px auto 0;
+    }
+  }
+
+  &CustomInput {
+    width: 100%;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 14px;
+    font-weight: bold;
+    text-align: center;
+    padding: 0 10px;
+  }
+
+  &CategoryEditor {
+    .categoryEditForm {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+      padding: 0 20px;
+
+      &Row {
+        display: flex;
+        align-items: center;
+        max-width: 90%;
+        margin: 0 auto;
+      }
+
+      &Buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 8px;
+        max-width: 90%;
+        margin: 8px auto 0;
+      }
+    }
+  }
+}
+
+// 修改媒体查询部分
+@media (max-width: 600px) {
+  .modelSelector {
+    &HeaderTitle {
+      display: none;
+    }
+    
+    &HeaderControls {
+      width: 100%;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+    }
+    
+    &HeaderSearchArea {
+      width: 100%;
+      display: flex;
+      justify-content: space-between; // 使搜索框和下拉框分布在两端
+    }
+    
+    &HeaderButtons {
+      width: auto; // 改为自动宽度
+      margin-left: auto; // 靠右对齐
+      justify-content: flex-end; // 按钮靠右
+    }
+  }
+}
+
+/* 为模态框底部按钮添加一个特定的类，避免使用:global */
+.modalFooter {
+  @media (max-width: 600px) {
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    
+    & > div {
+      width: 100%;
+    }
+  }
+}
+
+.modelResponseTime {
+  font-size: 12px;
+  color: var(--black);
+  opacity: 0.7;
+  margin-right: 10px;
+}
+
+.responseTimeFast {
+  color: #52c41a; // 绿色
+  font-weight: bold;
+}
+
+.responseTimeMedium {
+  color: #faad14; // 黄色
+  font-weight: bold;
+}
+
+.responseTimeSlow {
+  color: #ff7875; // 红色
+  font-weight: bold;
+}
+
+.modelTimeout {
+  color: #ff4d4f; // 红色
+  font-weight: bold;
+}
+
+.modelUnavailable {
+  opacity: 0.5;
+  background-color: var(--second);
+}
+
+.modelTestButton {
+  font-size: 12px;
+  color: var(--primary);
+  background-color: transparent;
+  border: 1px solid var(--primary);
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin-right: 10px;
+  font-weight: bold;
+}
+
+.modalButtonContainer {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px; /* 统一顶层容器间距 */
+  
+  @media (max-width: 600px) {
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
+.buttonRow {
+  display: flex;
+  width: 100%;
+  justify-content: space-between; /* 改为平均分布 */
+  gap: 15px; /* 统一行间距 */
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 8px; /* 按钮组内部间距保持不变 */
+  
+  /* 删除所有特殊边距规则 */
+  &:first-child {
+    margin-right: 0;
+  }
+  
+  &:not(:first-child) {
+    margin-left: 0;
+  }
+}
+
+.responsiveButton {
+  @media (max-width: 600px) {
+    flex: 1;
+    
+    & > span {
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+} 

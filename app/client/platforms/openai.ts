@@ -290,7 +290,9 @@ export class ChatGPTApi implements LLMApi {
         let index = -1;
         let isInThinking = false;
         const session = useChatStore.getState().currentSession();
-        const [_, funcs] = usePluginStore
+
+        // 获取所有插件工具
+        const [allTools, funcs] = usePluginStore
           .getState()
           .getAsTools(session.mask?.plugin || []);
 
@@ -302,26 +304,34 @@ export class ChatGPTApi implements LLMApi {
             : "Disabled",
         );
 
-        // 只有当用户选择了 googleSearch 时才创建 tools
-        const tools = session.mask?.plugin?.includes("googleSearch")
-          ? [
-              {
-                type: "function",
-                function: {
-                  name: "googleSearch",
+        // 特殊处理gemini模型的联网功能
+        // 如果是gemini-2.0-flash-exp且用户选择了googleSearch，使用特定的tools
+        // 否则使用常规插件tools
+        const useGoogleSearch = session.mask?.plugin?.includes("googleSearch");
+        const isGeminiFlash = modelConfig.model === "gemini-2.0-flash-exp";
+
+        const tools =
+          isGeminiFlash && useGoogleSearch
+            ? [
+                {
+                  type: "function",
+                  function: {
+                    name: "googleSearch",
+                  },
                 },
-              },
-            ]
-          : undefined;
+              ]
+            : Array.isArray(allTools)
+            ? allTools
+            : [];
 
         stream(
           chatPath,
           {
             ...requestPayload,
-            ...(tools ? { tools } : {}),
+            ...(Array.isArray(tools) && tools.length > 0 ? { tools } : {}),
           },
           getHeaders(),
-          tools || [], // 如果 tools 未定义，传入空数组
+          Array.isArray(tools) ? tools : [],
           funcs,
           controller,
           // parseSSE
@@ -364,8 +374,8 @@ export class ChatGPTApi implements LLMApi {
               } else {
                 return reasoning;
               }
-            } 
-            
+            }
+
             if (content && content.length > 0) {
               if (isInThinking) {
                 isInThinking = false;

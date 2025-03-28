@@ -111,15 +111,14 @@ export function Loading() {
   );
 }
 
-interface ModalProps {
-  title: string;
+export function Modal(props: {
+  title: string | JSX.Element;
   children?: any;
-  actions?: React.ReactNode[];
+  actions?: JSX.Element[];
   defaultMax?: boolean;
   footer?: React.ReactNode;
   onClose?: () => void;
-}
-export function Modal(props: ModalProps) {
+}) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -178,7 +177,14 @@ export function Modal(props: ModalProps) {
   );
 }
 
-export function showModal(props: ModalProps) {
+export function showModal(props: {
+  title: string | JSX.Element;
+  children?: any;
+  actions?: JSX.Element[];
+  defaultMax?: boolean;
+  footer?: React.ReactNode;
+  onClose?: () => void;
+}) {
   const div = document.createElement("div");
   div.className = "modal-mask";
   document.body.appendChild(div);

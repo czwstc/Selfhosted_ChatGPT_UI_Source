@@ -3,7 +3,7 @@ services:
   NeatChat:
     profiles: [ "no-proxy" ]
     container_name: NeatChat
-    image: tianzhentech/NeatChat
+    image: tianzhentech/chatgpt-next-web:latest
     ports:
       - 3000:3000
     environment:
@@ -21,7 +21,7 @@ services:
   NeatChat-proxy:
     profiles: [ "proxy" ]
     container_name: NeatChat-proxy
-    image: tianzhentech/NeatChat
+    image: tianzhentech/chatgpt-next-web:latest
     ports:
       - 3000:3000
     environment:

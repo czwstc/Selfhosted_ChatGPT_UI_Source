@@ -81,6 +81,7 @@ import { useMaskStore } from "../store/mask";
 import { ProviderType } from "../utils/cloud";
 import { TTSConfigList } from "./tts-config";
 import { RealtimeConfigList } from "./realtime-chat/realtime-config";
+import { ModelSelectorModal } from "./model-selector-modal";
 
 function EditPromptModal(props: { id: string; onClose: () => void }) {
   const promptStore = usePromptStore();
@@ -571,6 +572,30 @@ function SyncItems() {
       )}
     </>
   );
+}
+
+// 添加一个函数来从服务端获取 CUSTOM_MODELS 环境变量
+function useServerCustomModels() {
+  const [serverCustomModels, setServerCustomModels] = useState("");
+  const config = useAppConfig();
+
+  useEffect(() => {
+    // 从服务端获取 CUSTOM_MODELS 环境变量
+    fetch("/api/config")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.customModels && !config.customModels) {
+          // 只有当客户端没有设置自定义模型时，才使用服务端的设置
+          config.update((config) => (config.customModels = data.customModels));
+          setServerCustomModels(data.customModels);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch server custom models:", err);
+      });
+  }, []);
+
+  return serverCustomModels;
 }
 
 export function Settings() {
@@ -1345,6 +1370,47 @@ export function Settings() {
     </>
   );
 
+  // 获取服务端的自定义模型设置
+  const serverCustomModels = useServerCustomModels();
+
+  // 修改自定义模型输入框的处理逻辑
+  const [showModelSelector, setShowModelSelector] = useState(false);
+
+  const customModelsComponent = (
+    <ListItem
+      title={Locale.Settings.Access.CustomModel.Title}
+      subTitle={Locale.Settings.Access.CustomModel.SubTitle}
+      vertical={true}
+    >
+      <div className={styles["custom-model-container"]}>
+        <input
+          aria-label={Locale.Settings.Access.CustomModel.Title}
+          className={styles["custom-model-input"]}
+          type="text"
+          value={config.customModels}
+          placeholder={serverCustomModels || "model1,model2,model3"}
+          onChange={(e) =>
+            config.update(
+              (config) => (config.customModels = e.currentTarget.value),
+            )
+          }
+        ></input>
+        <IconButton
+          icon={<ResetIcon />}
+          text={Locale.Settings.Access.CustomModel.FetchModels}
+          onClick={() => {
+            if (accessStore.isAuthorized()) {
+              setShowModelSelector(true);
+            } else {
+              showToast("请先在设置中输入访问密码");
+            }
+          }}
+          className={styles["custom-model-button"]}
+        />
+      </div>
+    </ListItem>
+  );
+
   return (
     <ErrorBoundary>
       <div className="window-header" data-tauri-drag-region>
@@ -1792,24 +1858,7 @@ export function Settings() {
             </ListItem>
           ) : null}
 
-          <ListItem
-            title={Locale.Settings.Access.CustomModel.Title}
-            subTitle={Locale.Settings.Access.CustomModel.SubTitle}
-            vertical={true}
-          >
-            <input
-              aria-label={Locale.Settings.Access.CustomModel.Title}
-              style={{ width: "100%", maxWidth: "unset", textAlign: "left" }}
-              type="text"
-              value={config.customModels}
-              placeholder="model1,model2,model3"
-              onChange={(e) =>
-                config.update(
-                  (config) => (config.customModels = e.currentTarget.value),
-                )
-              }
-            ></input>
-          </ListItem>
+          {customModelsComponent}
         </List>
 
         <List>
@@ -1850,6 +1899,26 @@ export function Settings() {
         </List>
 
         <DangerItems />
+
+        {showModelSelector && (
+          <ModelSelectorModal
+            onClose={() => setShowModelSelector(false)}
+            currentModels={config.customModels}
+            onSelect={(selectedModels) => {
+              // 检查是否需要添加-all前缀
+              let finalModels = selectedModels;
+
+              // 如果选中的模型不为空，且不包含-all前缀，则添加
+              if (selectedModels && !selectedModels.includes("-all")) {
+                // 只要有选中的模型，就添加-all前缀
+                finalModels = "-all," + selectedModels;
+              }
+
+              // 更新配置
+              config.update((config) => (config.customModels = finalModels));
+            }}
+          />
+        )}
       </div>
     </ErrorBoundary>
   );

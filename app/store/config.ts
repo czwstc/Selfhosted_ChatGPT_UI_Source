@@ -101,7 +101,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   enableArtifacts: true,
   enableCodeFold: true,
   disablePromptHint: false,
-  dontShowMaskSplashScreen: false,
+  dontShowMaskSplashScreen: true,
   hideBuiltinMasks: false,
   customModels: "",
   models: DEFAULT_MODELS as any as LLMModel[],

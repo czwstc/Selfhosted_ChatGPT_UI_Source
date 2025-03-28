@@ -1,3 +1,18 @@
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+[role="button"],
+a,
+.clickable,
+summary,
+.chat-input-action,
+.window-action-button,
+.icon-button {
+  -webkit-tap-highlight-color: transparent !important;
+}
+
 @mixin light {
   color-scheme: light;
   --color-prettylights-syntax-comment: #6e7781;
@@ -99,6 +114,109 @@
   font-size: 14px;
   line-height: 1.5;
   word-wrap: break-word;
+
+  details {
+    margin: 1em 0;
+    position: relative;
+
+    summary {
+      cursor: pointer;
+      position: relative;
+      z-index: 1;
+      list-style: none;
+      user-select: none;
+      -webkit-user-select: none;
+      display: inline-block;
+      -webkit-tap-highlight-color: transparent;
+      
+      &:hover {
+        color: rgb(49, 94, 248);
+
+        &::before {
+          color: rgb(49, 94, 248);
+        }
+      }
+
+      &::-webkit-details-marker {
+        display: none;
+      }
+
+      &::before {
+        content: '▶';
+        display: inline-block;
+        margin-right: 0.5em;
+        transition: transform 0.2s;
+        width: 1em;
+        text-align: center;
+        position: relative;
+        left: -0.1em;
+      }
+
+      &:focus {
+        outline: none;
+      }
+
+      &:focus-visible {
+        outline: none;
+      }
+
+      &:active {
+        background: none;
+      }
+    }
+
+    &[open] > summary::before {
+      transform: rotate(90deg);
+    }
+
+    & > *:not(summary) {
+      padding-left: 1.5em;
+      position: relative;
+    }
+
+    .thinking-loader {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--primary);
+      border-radius: 50%;
+      border-top-color: transparent;
+      margin-left: 8px;
+      vertical-align: text-bottom;
+      animation: thinking-spin 1s linear infinite;
+      position: relative;
+      top: 1px;
+    }
+
+    @keyframes thinking-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    blockquote, 
+    > p > blockquote {
+      margin: 0;
+      padding-left: 1.5em;
+      border-left: none;
+      position: relative;
+      font-size: 0.9em;
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: calc(0.45em - 1px);
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background-color: var(--color-border-muted);
+      }
+    }
+
+    > blockquote {
+      margin-top: 0;
+    }
+  }
 }
 
 .light {
@@ -1129,4 +1247,18 @@
 
 #dmermaid {
   display: none;
+}
+
+.markdown-body-container {
+  position: relative;
+  width: 100%;
+  
+  .token-info {
+    font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+    transition: opacity 0.3s ease;
+    
+    &:hover {
+      opacity: 1 !important;
+    }
+  }
 }
